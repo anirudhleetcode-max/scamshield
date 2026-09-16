@@ -1,0 +1,92 @@
+{
+  "name": "ablation_random_calib_folds",
+  "description": "Ablation of Track C: identical except calibration uses random (not template-grouped) 3-fold CV.",
+  "train": [
+    {
+      "dataset": "synthetic_in",
+      "splits": [
+        "train"
+      ]
+    },
+    {
+      "dataset": "uci_sms_spam",
+      "splits": [
+        "train"
+      ]
+    }
+  ],
+  "val": [
+    {
+      "dataset": "synthetic_in",
+      "splits": [
+        "val"
+      ]
+    },
+    {
+      "dataset": "uci_sms_spam",
+      "splits": [
+        "val"
+      ]
+    }
+  ],
+  "category_head": true,
+  "seed": 42,
+  "features": {
+    "word_max_features": 12000,
+    "char_max_features": 20000,
+    "word_min_df": 2,
+    "char_min_df": 3,
+    "sublinear_tf": true
+  },
+  "model_params": {
+    "C": 4.0,
+    "svc_C": 0.5,
+    "alpha": 0.1,
+    "category_C": 8.0
+  },
+  "models": [
+    "logreg_uncal",
+    "logreg_cal",
+    "linsvc_cal"
+  ],
+  "main_model": "logreg_cal",
+  "threshold": {
+    "strategy": "max_f1"
+  },
+  "operating_points": {
+    "suspicious_min_recall": 0.95,
+    "scam_min_precision": 0.97,
+    "selective_target_accuracy": 0.98
+  },
+  "test_sets": {
+    "synthetic_test": [
+      {
+        "dataset": "synthetic_in",
+        "splits": [
+          "test"
+        ]
+      }
+    ],
+    "uci_test": [
+      {
+        "dataset": "uci_sms_spam",
+        "splits": [
+          "test"
+        ]
+      }
+    ],
+    "all_scam_spam_short": [
+      {
+        "dataset": "all_scam_spam_short",
+        "splits": [
+          "test"
+        ]
+      }
+    ]
+  },
+  "error_analysis": {
+    "test_sets": [],
+    "top_k": 0
+  },
+  "calibration_folds": "random"
+}

@@ -1,0 +1,4 @@
+error_type,p_scam,threshold,source,category,text,top_tokens
+false_positive,0.5042,0.4304,uci_sms_spam,,Your bill at 3 is £33.65 so thats not bad!,'00':+1.13 'your':+0.40 '00 ':+0.26 'is 00':+0.17 'bill':+0.16 ' £0':+0.15
+false_negative,0.0128,0.4304,uci_sms_spam,,"Do you realize that in about 40 years, we'll have thousands of old ladies running around with tattoos?",'ll':-0.10 'that':-0.09 'in':-0.05 'about':-0.04 'do you':-0.04 'around':-0.04
+false_negative,0.2456,0.4304,uci_sms_spam,,"Will u meet ur dream partner soon? Is ur career off 2 a flyng start? 2 find out free, txt HORO followed by ur star sign, e. g. HORO ARIES",'off':-0.07 'soon':-0.06 'meet':-0.04 'is ur':-0.03 'career':-0.03 ' me':-0.02
