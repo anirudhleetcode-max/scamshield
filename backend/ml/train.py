@@ -61,10 +61,19 @@ def build_card(cfg: dict, res: dict, version: str, run_id: str) -> dict:
             calib[name] = {k: {"brier": t["at_default"]["brier"], "ece": t["at_default"]["ece"]}
                            for k, t in res["models"][name]["test"].items()}
             calib[name]["val"] = {"brier": res["models"][name]["val"]["brier"], "ece": res["models"][name]["val"]["ece"]}
+    used: dict[str, set[str]] = {}
+    for part in ("train", "val"):
+        for spec in cfg[part]:
+            used.setdefault(spec["dataset"], set()).add(part)
+    for specs in cfg["test_sets"].values():
+        for spec in specs:
+            used.setdefault(spec["dataset"], set()).add("test")
     datasets = []
     for name, info in res["data"].items():
-        datasets.append({k: info.get(k) for k in ("name", "kind", "version", "source_url", "licence",
-                                                   "processed_sha256", "raw_sha256", "counts", "description")})
+        d = {k: info.get(k) for k in ("name", "kind", "version", "source_url", "licence",
+                                      "processed_sha256", "raw_sha256", "counts", "description")}
+        d["used_for"] = [p for p in ("train", "val", "test") if p in used.get(name, set())]
+        datasets.append(d)
     return {
         "model_name": "scamshield-text",
         "model_version": version,

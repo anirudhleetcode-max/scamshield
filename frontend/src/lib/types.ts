@@ -114,7 +114,7 @@ export type ModelCard = {
   pipeline: string[];
   training_data: {
     datasets: { name: string; kind: "synthetic" | "real"; version: string; source_url: string | null; licence: string;
-      processed_sha256: string | null; counts: { total: number }; description: string }[];
+      processed_sha256: string | null; counts: { total: number }; description: string; used_for?: string[] }[];
     train_rows: number;
     val_rows: number;
     contains_synthetic: boolean;

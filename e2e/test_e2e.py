@@ -59,8 +59,9 @@ def test_full_journey(page: Page):
     assert page.get_by_test_id("preview").locator("mark[data-source=rule]").count() >= 1
     expect(page.locator('[data-flag=risky_link][data-hit=true]')).to_be_visible()
     expect(page.locator(".advice")).to_contain_text("1930")
+    expect(page.get_by_test_id("confidence")).to_contain_text("high")
     page.get_by_test_id("save-check").click()
-    expect(page.get_by_test_id("saved-toast")).to_contain_text("Scam")
+    expect(page.get_by_test_id("toast").last).to_contain_text("Scam")
     page.wait_for_timeout(300)
     page.screenshot(path=str(SHOTS / "check-scam.png"))
 
@@ -70,7 +71,13 @@ def test_full_journey(page: Page):
     expect(page.get_by_test_id("verdict")).to_have_text("Safe")
     expect(page.get_by_test_id("category")).to_contain_text("Legit transactional")
     page.get_by_test_id("save-check").click()
-    expect(page.get_by_test_id("saved-toast")).to_contain_text("Safe")
+    expect(page.get_by_test_id("toast").last).to_contain_text("Safe")
+
+    # --- a fragment the model should not judge -> abstains (not saved)
+    page.get_by_test_id("message-input").fill("ok bhai")
+    page.get_by_test_id("sender-input").fill("")
+    expect(page.get_by_test_id("verdict")).to_have_text("Insufficient confidence")
+    expect(page.locator("[data-reason=too_short]")).to_be_visible()
 
     # --- lookalike UPI ID
     nav(page, "UPI & Links")
@@ -109,6 +116,17 @@ def test_full_journey(page: Page):
     expect(page.get_by_test_id("stats")).to_contain_text("50%")
     expect(page.get_by_test_id("chart-per-day").locator(".recharts-bar-rectangle").first).to_be_attached()
     expect(page.get_by_test_id("chart-categories")).to_contain_text("KYC / bank impersonation")
+    expect(page.get_by_test_id("model-summary")).to_contain_text("synthetic")
+
+    # --- model card page labels synthetic data and shows limitations
+    nav(page, "Model")
+    expect(page.get_by_test_id("synthetic-warning")).to_be_visible()
+    expect(page.get_by_test_id("datasets")).to_contain_text("uci_sms_spam")
+    expect(page.get_by_test_id("datasets").get_by_test_id("synthetic-tag")).to_be_visible()
+    expect(page.get_by_test_id("operating-points")).to_contain_text("score ≥")
+    expect(page.get_by_test_id("limitations")).to_contain_text("synthetic")
+    page.wait_for_timeout(300)
+    page.screenshot(path=str(SHOTS / "model-card.png"))
 
 
 def test_demo_account_insights(page: Page):
@@ -118,26 +136,47 @@ def test_demo_account_insights(page: Page):
     page.get_by_role("button", name="Use demo account").click()
     page.get_by_test_id("auth-submit").click()
     expect(page.get_by_test_id("message-input")).to_be_visible()
+    expect(page.get_by_test_id("demo-banner")).to_be_visible()
     nav(page, "Insights")
+    expect(page.get_by_test_id("demo-data-tag")).to_be_visible()
     expect(page.get_by_test_id("chart-per-day").locator(".recharts-bar-rectangle").first).to_be_attached()
     expect(page.get_by_test_id("stats")).to_contain_text(re.compile(r"\d+%"))
     page.wait_for_timeout(300)
     page.screenshot(path=str(SHOTS / "insights.png"))
 
+    # --- delete with confirmation (demo history)
+    nav(page, "History")
+    expect(page.get_by_test_id("history-row").first).to_be_visible()
+    total = page.get_by_test_id("history-total").inner_text()
+    page.get_by_role("button", name="Delete check").first.click()
+    page.get_by_role("button", name="Cancel").click()
+    expect(page.get_by_test_id("history-total")).to_have_text(total)
+    page.get_by_role("button", name="Delete check").first.click()
+    page.get_by_test_id("confirm-delete").click()
+    expect(page.get_by_test_id("toast").last).to_contain_text("deleted")
+    expect(page.get_by_test_id("history-total")).not_to_have_text(total)
+
+    # --- 375px mobile screenshot of a check
+    nav(page, "Check")
+    page.set_viewport_size({"width": 375, "height": 812})
+    page.get_by_test_id("message-input").fill(KYC_SCAM)
+    expect(page.get_by_test_id("verdict")).to_have_text("Scam")
+    page.wait_for_timeout(300)
+    page.screenshot(path=str(SHOTS / "mobile-check.png"), full_page=True)
+    page.set_viewport_size({"width": 1440, "height": 900})
+
     if EXTRA:  # extra review shots (not part of the deliverable)
         EXTRA.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(EXTRA / "insights-full.png"), full_page=True)
-        for path, name in [("/history", "history"), ("/reports", "reports"), ("/links", "links")]:
-            nav(page, {"history": "History", "reports": "Reports", "links": "UPI & Links"}[name])
-            page.wait_for_timeout(500)
+        for path, name in [("/history", "history"), ("/reports", "reports"), ("/links", "links"), ("/model", "model")]:
+            page.goto(BASE + path)
+            page.wait_for_timeout(800)
             page.screenshot(path=str(EXTRA / f"{name}.png"), full_page=True)
-        nav(page, "Check")
+        page.goto(BASE + "/")
         page.get_by_test_id("message-input").fill(KYC_SCAM + " Or call 9123456780")
         expect(page.get_by_test_id("verdict")).to_have_text("Scam")
         page.screenshot(path=str(EXTRA / "check-full.png"), full_page=True)
         page.set_viewport_size({"width": 375, "height": 812})
-        page.wait_for_timeout(300)
-        page.screenshot(path=str(EXTRA / "m-check.png"), full_page=True)
         page.goto(BASE + "/insights")
         expect(page.get_by_test_id("stats")).to_be_visible()
         page.wait_for_timeout(500)

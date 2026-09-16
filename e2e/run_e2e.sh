@@ -32,7 +32,7 @@ wait_for() {
 
 cd "$ROOT/backend"
 "$PY" -c "import pymongo; pymongo.MongoClient('mongodb://127.0.0.1:27017').drop_database('$MONGO_DB')"
-[ -f models/scamshield.joblib ] || "$PY" -m ml.train
+[ -f "models/scamshield-${MODEL_VERSION:-2.0.0}.joblib" ] || { echo "model artifact missing - run python -m ml.train" >&2; exit 1; }
 "$PY" -m scripts.seed
 "$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8001 >"$LOGS/backend.log" 2>&1 &
 PIDS+=($!)

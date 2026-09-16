@@ -81,10 +81,10 @@ export default function Model() {
         </section>
 
         <section className="panel">
-          <div className="panel-h"><h2>Training data</h2><span className="right small muted">{c.training_data.train_rows} train · {c.training_data.val_rows} val rows</span></div>
+          <div className="panel-h"><h2>Data</h2><span className="right small muted">{c.training_data.train_rows} train · {c.training_data.val_rows} val rows</span></div>
           <div className="table-wrap">
             <table className="t" data-testid="datasets">
-              <thead><tr><th>Dataset</th><th>Kind</th><th className="hide-sm">Licence</th><th className="n">Rows</th></tr></thead>
+              <thead><tr><th>Dataset</th><th>Kind</th><th>Used for</th><th className="hide-sm">Licence</th><th className="n">Rows</th></tr></thead>
               <tbody>
                 {c.training_data.datasets.map((d) => (
                   <tr key={d.name}>
@@ -94,6 +94,7 @@ export default function Model() {
                       {d.processed_sha256 && <div className="muted small mono">sha256 {d.processed_sha256.slice(0, 12)}…</div>}
                     </td>
                     <td><KindTag kind={d.kind} /></td>
+                    <td className="small">{d.used_for?.join(", ") ?? "—"}</td>
                     <td className="hide-sm small">{d.licence}</td>
                     <td className="n">{d.counts.total.toLocaleString("en-IN")}</td>
                   </tr>
