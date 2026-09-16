@@ -1,0 +1,51 @@
+/* ScamShield — "security console, printed" */
+:root {
+  --paper: #f6f5f1;
+  --paper-2: #efede6;
+  --sheet: #fbfaf7;
+  --ink: #17181b;
+  --ink-2: #45474d;
+  --ink-3: #75777d;
+  --rule: #d8d5cb;
+  --rule-strong: #b9b5a8;
+
+  --scam: #c42a1f;
+  --scam-tint: #f6dcd7;
+  --sus: #a86400;
+  --sus-tint: #f5e5c6;
+  --safe: #3b7148;
+  --safe-tint: #dbe9dd;
+  --link: #1d4ed8;
+
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --r: 3px;
+
+  color-scheme: light;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; background: var(--paper); }
+h1, h2, h3, h4, p { margin: 0; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+h3 { font-size: 14px; font-weight: 600; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.mono, code, kbd { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-3); }
+.small { font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+::selection { background: #e6e1d2; }
