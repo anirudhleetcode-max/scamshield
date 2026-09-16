@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 
@@ -8,11 +9,13 @@ from starlette.concurrency import run_in_threadpool
 
 from ml.templates import ALL_CATEGORIES, CATEGORY_LABELS
 
+from ..config import get_settings
 from ..db import get_db
 from ..schemas import CheckIn
 from ..security import current_user
 from ..services import identifiers
 from ..services.analyzer import analyze
+from ..services.classifier import get_model
 from ..services.community import report_counts
 
 router = APIRouter(prefix="/api", tags=["check"])
@@ -22,7 +25,12 @@ async def run_analysis(body: CheckIn) -> dict:
     # cheap regex pass first so community counts can be fetched in one aggregation
     pairs = [(i["kind"], i["value"]) for i in identifiers.extract(body.text)]
     counts = await report_counts(pairs)
-    return await run_in_threadpool(analyze, body.text, body.sender, counts)
+    model = get_model()  # raises ModelUnavailable -> 503 before any work is queued
+    try:
+        return await asyncio.wait_for(run_in_threadpool(analyze, body.text, body.sender, counts, model),
+                                      timeout=get_settings().inference_timeout_s)
+    except asyncio.TimeoutError:
+        raise HTTPException(503, "Analysis timed out, please try again")
 
 
 def _oid(value: str) -> ObjectId:
@@ -41,6 +49,8 @@ def serialize(doc: dict, full: bool = False) -> dict:
         "verdict": doc["verdict"],
         "category": doc["category"],
         "category_label": doc["result"]["category_label"],
+        "status": doc.get("status", "decided"),
+        "demo": bool(doc.get("demo", False)),
         "flags_hit": doc.get("flags_hit", []),
         "created_at": doc["created_at"].isoformat(),
     }
@@ -64,6 +74,7 @@ async def create_check(body: CheckIn, user: dict = Depends(current_user)):
         "sender": body.sender,
         "score": result["score"],
         "verdict": result["verdict"],
+        "status": result["status"],
         "category": result["category"],
         "flags_hit": [f["id"] for f in result["flags"] if f["hit"]],
         "identifiers": [{"kind": i["kind"], "value": i["value"]} for i in result["identifiers"]],

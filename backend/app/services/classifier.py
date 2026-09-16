@@ -1,4 +1,8 @@
-"""Loads the trained model once and turns linear-model weights into highlighted spans.
+"""Loads the versioned model artifact once and turns linear-model weights into highlighted spans.
+
+Artifact layout (written by `python -m ml.train`):
+    models/scamshield-<version>.joblib       features + binary model + category model
+    models/scamshield-<version>.card.json    model card: data, params, metrics, operating points
 
 Explanation method
 ------------------
@@ -10,6 +14,8 @@ adjacent high-scoring words are merged into phrases.
 """
 from __future__ import annotations
 
+import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,13 +23,21 @@ from pathlib import Path
 import joblib
 import numpy as np
 
-from .textprep import WORD_RE, normalize
+from ml.models import linear_coef
+from ml.preprocess import WORD_RE, normalize
 
-MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "scamshield.joblib"
+from ..config import get_settings
+
+log = logging.getLogger("scamshield.model")
 SPAN_WORD_RE = re.compile(r"\S+")
 STOPWORDS = {"a", "an", "and", "the", "to", "of", "in", "on", "at", "is", "are", "for", "from", "by", "or", "you",
              "your", "ur", "u", "me", "my", "we", "our", "it", "this", "that", "with", "be", "will", "has", "have",
-             "dear", "hi", "hello", "call", "ko", "ke", "ki", "ka", "hai", "se", "me", "sent", "and", "pay"}
+             "dear", "hi", "hello", "call", "ko", "ke", "ki", "ka", "hai", "se", "sent", "pay"}
+REQUIRED_OPS = ("model_threshold", "suspicious_score", "scam_score", "uncertain_band")
+
+
+class ModelUnavailable(RuntimeError):
+    """Raised when analysis is requested but no model could be loaded."""
 
 
 @dataclass
@@ -34,24 +48,37 @@ class Prediction:
     spans: list[dict]
 
 
+def artifact_paths(version: str, model_dir: Path) -> tuple[Path, Path]:
+    return model_dir / f"scamshield-{version}.joblib", model_dir / f"scamshield-{version}.card.json"
+
+
 class ScamModel:
-    def __init__(self, path: Path = MODEL_PATH):
+    def __init__(self, path: Path, card_path: Path | None = None):
         if not path.exists():
-            raise FileNotFoundError(f"{path} not found - run `python -m ml.train` first")
+            raise FileNotFoundError(f"{path.name} not found - run `python -m ml.train` first")
+        card_path = card_path or path.with_name(path.name.replace(".joblib", ".card.json"))
+        if not card_path.exists():
+            raise FileNotFoundError(f"model card {card_path.name} not found next to the artifact")
+        self.card = json.loads(card_path.read_text())
+        ops = self.card.get("operating_points", {})
+        missing = [k for k in REQUIRED_OPS if k not in ops]
+        if missing:
+            raise ValueError(f"model card is missing operating points: {missing}")
+        self.ops = ops
         bundle = joblib.load(path)
         self.version = bundle["version"]
+        if self.version != self.card.get("model_version"):
+            raise ValueError(f"artifact version {self.version} does not match card {self.card.get('model_version')}")
         self.features = bundle["features"]
         self.binary = bundle["binary"]
         self.category = bundle["category"]
         self.classes = list(self.category.classes_)
-        word_vec = self.features.transformer_list[0][1]
+        self.word_vocab = self.features.transformer_list[0][1].vocabulary_
         char_vec = self.features.transformer_list[1][1]
-        self.word_vocab = word_vec.vocabulary_
         self.char_vocab = char_vec.vocabulary_
         self.char_range = char_vec.ngram_range
         self.n_word = len(self.word_vocab)
-        # averaged coefficients of the calibrated folds (all linear -> average is still linear)
-        self.bin_coef = np.mean([c.estimator.coef_[0] for c in self.binary.calibrated_classifiers_], axis=0)
+        self.bin_coef = linear_coef(self.binary)
 
     # ------------------------------------------------------------------ predict
     def predict(self, text: str) -> Prediction:
@@ -103,7 +130,6 @@ class ScamModel:
             char_score[s:e] += c / (e - s)
         words = []
         for m in SPAN_WORD_RE.finditer(text):
-            # trim punctuation so highlights sit on the word itself
             s, e = m.start(), m.end()
             while s < e and not text[s].isalnum():
                 s += 1
@@ -119,7 +145,6 @@ class ScamModel:
             return []
         thresh = max(0.08, float(np.sort(positive)[::-1][: max(top_k * 2, 1)][-1]))
         picked = [w for w in words if w[2] >= thresh]
-        # merge neighbours separated only by whitespace/punctuation
         merged: list[list] = []  # [start, end, score, n_words]
         for s, e, sc in picked:
             if merged and merged[-1][3] < 4 and re.fullmatch(r"[\s,:\-]{0,3}", text[merged[-1][1]:s]):
@@ -142,10 +167,40 @@ class ScamModel:
 
 
 _model: ScamModel | None = None
+_load_error: str | None = None
+
+
+def load_model(path: Path | None = None) -> ScamModel | None:
+    """Try to load the configured artifact; remember the error instead of crashing."""
+    global _model, _load_error
+    s = get_settings()
+    if path is None:
+        path, _ = artifact_paths(s.model_version, Path(s.model_dir))
+    try:
+        _model = ScamModel(path)
+        _load_error = None
+        log.info("model loaded version=%s", _model.version)
+    except Exception as e:  # corrupt pickle, missing file, bad card ...
+        _model = None
+        _load_error = f"{type(e).__name__}: {e}"
+        log.error("model not loaded: %s", _load_error)
+    return _model
 
 
 def get_model() -> ScamModel:
-    global _model
     if _model is None:
-        _model = ScamModel()
+        if _load_error is None:
+            load_model()
+        if _model is None:
+            raise ModelUnavailable(_load_error or "model not loaded")
     return _model
+
+
+def model_status() -> dict:
+    return {"loaded": _model is not None, "version": _model.version if _model else None, "error": _load_error}
+
+
+def set_model(model: ScamModel | None, error: str | None = None) -> None:
+    """Swap the in-process model (used by evaluation code and tests)."""
+    global _model, _load_error
+    _model, _load_error = model, error

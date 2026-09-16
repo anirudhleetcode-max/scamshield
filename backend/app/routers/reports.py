@@ -78,7 +78,8 @@ async def top_reported(user: dict = Depends(current_user), limit: int = Query(8,
 async def top_identifiers(limit: int) -> list[dict]:
     pipeline = [
         {"$group": {"_id": {"kind": "$kind", "value": "$value"}, "reports": {"$sum": 1},
-                    "categories": {"$push": "$category"}, "last": {"$max": "$created_at"}}},
+                    "categories": {"$push": "$category"}, "last": {"$max": "$created_at"},
+                    "demo_only": {"$min": {"$ifNull": ["$demo", False]}}}},
         {"$sort": {"reports": -1, "last": -1}},
         {"$limit": limit},
     ]
@@ -86,5 +87,6 @@ async def top_identifiers(limit: int) -> list[dict]:
     async for r in get_db().reports.aggregate(pipeline):
         cats = r["categories"]
         out.append({"kind": r["_id"]["kind"], "value": r["_id"]["value"], "reports": r["reports"],
-                    "category": max(set(cats), key=cats.count), "last_reported": r["last"].isoformat()})
+                    "category": max(set(cats), key=cats.count), "last_reported": r["last"].isoformat(),
+                    "demo_only": bool(r["demo_only"])})
     return out

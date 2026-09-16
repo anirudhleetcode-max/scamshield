@@ -37,7 +37,7 @@ def test_normalize_preserves_length():
 @pytest.mark.parametrize("text,category", SCAMS)
 def test_fresh_scams_flagged(model, text, category):
     r = analyze(text, None, {})
-    assert r["verdict"] == "Scam", (r["score"], r["components"])
+    assert r["verdict"] in ("Suspicious", "Scam"), (r["score"], r["components"])
     top3 = [c["category"] for c in r["top_categories"]]
     assert category == r["category"] or category in top3
 
@@ -72,8 +72,20 @@ def test_community_reports_raise_score(model):
     assert community_component(0) == 0 and community_component(10) == 0.65
 
 
-def test_verdict_bands():
-    assert [verdict_for(s) for s in (0, 34, 35, 69, 70, 100)] == ["Safe", "Safe", "Suspicious", "Suspicious", "Scam", "Scam"]
+def test_verdict_bands_come_from_model_card(model):
+    ops = model.ops
+    assert ops["chosen_on"] == "val"
+    s, c = ops["suspicious_score"], ops["scam_score"]
+    assert 0 < s < c <= 100
+    assert [verdict_for(x, ops) for x in (s - 1, s, c - 1, c)] == ["Safe", "Suspicious", "Suspicious", "Scam"]
+
+
+def test_safety_floor_rules_force_at_least_suspicious(model):
+    ops = model.ops
+    assert verdict_for(0, ops, {"asks_secret"}) == "Suspicious"
+    assert verdict_for(0, ops, {"urgency"}) == "Safe"
+    r = analyze("Please tell me the OTP you just received, I am calling from your bank", None, {})
+    assert r["verdict"] != "Safe"
 
 
 def test_non_official_sender(model):

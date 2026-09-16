@@ -8,22 +8,50 @@ Risk formula (noisy-OR: each source independently "explains" the risk)
         where n = most distinct users that reported any phone / UPI ID / URL in the message
     risk  = 100 * (1 - (1 - 0.9 * p) * (1 - R) * (1 - C))
 
-    verdict: risk < 35 -> Safe, 35..69 -> Suspicious, >= 70 -> Scam
+The Safe / Suspicious / Scam cut-offs are NOT constants in this file: they are operating
+points chosen on the validation split by `python -m ml.train` and stored in the model
+card (`operating_points.suspicious_score` / `scam_score`). One policy override: if a
+SAFETY_FLOOR rule fires (asks for OTP/PIN, collect request, remote-access app) the verdict is
+at least Suspicious.
+
+Abstention ("insufficient confidence") - the verdict band is still computed, but
+`status` becomes "insufficient_confidence" when the model should not decide:
+    too_short        fewer than 3 words or 8 letters, and no rule / report evidence
+    non_latin_script >30% of letters are non-Latin (training data is English + romanised Hindi),
+                     unless rules or reports give strong evidence
+    mostly_url       >70% of the text is a link and the link checks found nothing risky
+    uncertain_model  model probability inside the validation-chosen uncertain band and
+                     no rule or report evidence
 """
 from __future__ import annotations
 
+from ml.preprocess import quality_signals
 from ml.templates import CATEGORY_LABELS, SAFE_CATEGORIES, SCAM_CATEGORIES
 
 from . import rules
-from .classifier import get_model
+from .classifier import ScamModel, get_model
 
-SAFE_MAX = 35
-SUSPICIOUS_MAX = 70
+MIN_WORDS = 3
+MIN_LETTERS = 8
+MAX_NON_LATIN = 0.30
+MAX_URL_RATIO = 0.70
+STRONG_RULES = 0.25
+
+REASON_TEXT = {
+    "too_short": "The message is too short to judge from its wording.",
+    "non_latin_script": "Most of the text is in a script the model was not trained on (it knows English and romanised Hindi).",
+    "mostly_url": "The message is mostly a link. Check the link itself on the UPI & Links page.",
+    "uncertain_model": "The model's probability is in its uncertain range and no rule or report backs either way.",
+}
 
 GENERIC_ADVICE = [
     "Never enter your UPI PIN to receive money. A PIN is only ever needed to send money.",
     "Banks, NPCI and government offices never ask for OTP, PIN, CVV or passwords by SMS, call or WhatsApp.",
     "If you lost money, call the national cyber fraud helpline 1930 immediately and file a complaint at cybercrime.gov.in.",
+]
+ABSTAIN_ADVICE = [
+    "Treat it with caution: do not click links, share codes or pay until you have verified the sender through an official channel.",
+    "Paste the full message (not just a fragment) for a better check.",
 ]
 ADVICE = {
     "kyc_bank": ["Do not open the link. Check KYC status only inside your bank's official app or at a branch.",
@@ -56,17 +84,54 @@ def community_component(n: int) -> float:
     return 0.0 if n <= 0 else min(0.65, 0.20 + 0.15 * n)
 
 
-def verdict_for(score: int) -> str:
-    return "Safe" if score < SAFE_MAX else "Suspicious" if score < SUSPICIOUS_MAX else "Scam"
+def rules_component(flags: list[dict]) -> float:
+    return min(0.6, sum(f["weight"] for f in flags))
 
 
-def analyze(text: str, sender: str | None, report_counts: dict[tuple[str, str], int]) -> dict:
-    model = get_model()
+def fuse(p: float, R: float, C: float) -> float:
+    """Noisy-OR risk in [0, 1]."""
+    return 1 - (1 - 0.9 * p) * (1 - R) * (1 - C)
+
+
+# Safety floor: these red flags are never compatible with a legitimate message (a bank never asks
+# for your OTP, receiving money never needs a PIN, nobody legitimate needs AnyDesk on your phone),
+# so when one fires the verdict is at least "Suspicious" whatever the model says.
+SAFETY_FLOOR_RULES = frozenset({"asks_secret", "upi_collect", "app_install"})
+
+
+def verdict_for(score: float, ops: dict, hits: set[str] | frozenset[str] = frozenset()) -> str:
+    if score >= ops["scam_score"]:
+        return "Scam"
+    if score >= ops["suspicious_score"] or hits & SAFETY_FLOOR_RULES:
+        return "Suspicious"
+    return "Safe"
+
+
+def abstain_reasons(q: dict, p: float, R: float, C: float, risky_ident: bool, ops: dict) -> list[str]:
+    evidence = R > 0 or C > 0 or risky_ident
+    reasons = []
+    if (q["n_words"] < MIN_WORDS or q["letters"] < MIN_LETTERS) and not evidence:
+        reasons.append("too_short")
+    if q["non_latin_ratio"] > MAX_NON_LATIN and not (R >= STRONG_RULES or C > 0 or risky_ident):
+        reasons.append("non_latin_script")
+    if q["url_ratio"] > MAX_URL_RATIO and not (risky_ident or C > 0):
+        reasons.append("mostly_url")
+    band = ops["uncertain_band"]
+    if band["low"] <= p <= band["high"] and not evidence:
+        reasons.append("uncertain_model")
+    return reasons
+
+
+def analyze(text: str, sender: str | None, report_counts: dict[tuple[str, str], int],
+            model: ScamModel | None = None) -> dict:
+    model = model or get_model()
+    ops = model.ops
     pred = model.predict(text)
     flags, rule_spans, idents = rules.check(text, sender)
+    q = quality_signals(text)
 
     p = pred.scam_probability
-    R = min(0.6, sum(f["weight"] for f in flags))
+    R = rules_component(flags)
     n_max = 0
     report_spans = []
     for it in idents:
@@ -77,9 +142,11 @@ def analyze(text: str, sender: str | None, report_counts: dict[tuple[str, str], 
             report_spans.append({"start": it["start"], "end": it["end"], "text": it["raw"], "source": "report",
                                  "rule": "community_report"})
     C = community_component(n_max)
-    risk = 1 - (1 - 0.9 * p) * (1 - R) * (1 - C)
-    score = int(round(100 * risk))
-    verdict = verdict_for(score)
+    score = int(round(100 * fuse(p, R, C)))
+    verdict = verdict_for(score, ops, {f["id"] for f in flags if f["hit"]})
+    risky_ident = any(it["analysis"]["risk"] in ("high", "medium") for it in idents)
+    reasons = abstain_reasons(q, p, R, C, risky_ident, ops)
+    status = "insufficient_confidence" if reasons else "decided"
 
     flags.append({"id": "community_report", "label": "Contains a number, UPI ID or link reported by other users",
                   "hit": n_max > 0, "weight": round(C, 3),
@@ -95,22 +162,42 @@ def analyze(text: str, sender: str | None, report_counts: dict[tuple[str, str], 
     elif verdict == "Safe" and category in SCAM_CATEGORIES:
         category = best_safe
 
-    advice = list(ADVICE.get(category, []))
-    if verdict != "Safe":
-        advice += GENERIC_ADVICE
-    elif any(f["hit"] for f in flags):
-        advice.append("One or more red flags were found - read the checklist before acting.")
+    band = ops["uncertain_band"]
+    model_says_scam = p >= ops["model_threshold"]
+    in_band = band["low"] <= p <= band["high"]
+    if reasons or in_band:
+        level = "low"
+    elif model_says_scam == (verdict != "Safe"):
+        level = "high"
+    else:
+        level = "medium"  # rules / reports overrode the model
+
+    if status == "insufficient_confidence":
+        advice = list(ABSTAIN_ADVICE) + GENERIC_ADVICE
+    else:
+        advice = list(ADVICE.get(category, []))
+        if verdict != "Safe":
+            advice += GENERIC_ADVICE
+        elif any(f["hit"] for f in flags):
+            advice.append("One or more red flags were found - read the checklist before acting.")
 
     spans = report_spans + rule_spans + (pred.spans if p >= 0.25 or verdict != "Safe" else [])
     top = sorted(probs.items(), key=lambda kv: -kv[1])[:3]
     return {
         "score": score,
         "verdict": verdict,
+        "status": status,
+        "abstain_reasons": [{"id": r, "text": REASON_TEXT[r]} for r in reasons],
+        "scam_probability": round(p, 4),
+        "confidence_level": level,
         "category": category,
         "category_label": CATEGORY_LABELS[category],
         "category_confidence": round(probs.get(category, 0.0), 3),
         "top_categories": [{"category": c, "label": CATEGORY_LABELS[c], "p": round(v, 3)} for c, v in top],
         "components": {"model": round(p, 3), "rules": round(R, 3), "community": round(C, 3)},
+        "thresholds": {"suspicious": ops["suspicious_score"], "scam": ops["scam_score"],
+                       "uncertain_low": band["low"], "uncertain_high": band["high"]},
+        "input_quality": q,
         "spans": spans,
         "flags": flags,
         "identifiers": [{k: it[k] for k in ("kind", "value", "raw", "start", "end", "reports")} |
