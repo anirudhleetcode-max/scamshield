@@ -6,7 +6,7 @@
 - `real_uci-20260916-131734`
 - `combined-train-v2.0.0-20260916-131746`
 
-All three were run at git commit `28ed024` on a clean tree, with scikit-learn 1.8.0 and Python 3.11.15.
+Tracks A–C were run at git commit `28ed024` and the ablation at `dd3f1fe`, all on a clean tree, with scikit-learn 1.8.0 and Python 3.11.15.
 
 **Datasets** (full details in `backend/data/manifest.json`):
 - `synthetic_in` v2.0 (**synthetic**): 8,624 rows, split by template (train 5,463 / val 1,214 / test 1,947).
