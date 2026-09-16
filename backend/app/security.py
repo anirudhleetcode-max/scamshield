@@ -17,7 +17,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    try:
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    except ValueError:  # e.g. password longer than bcrypt's 72-byte limit
+        return False
 
 
 def create_token(user_id: str) -> str:
