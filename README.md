@@ -1,174 +1,96 @@
 # ScamShield
 
-ScamShield checks a suspicious SMS, WhatsApp message or UPI payment request before you act on it. It is built for Indian users.
+ScamShield checks a suspicious Indian SMS, WhatsApp message, UPI ID or payment link and explains its verdict. It combines a calibrated text classifier, a red-flag rule engine and community reports.
 
-Paste a message and it gives you:
-- a **0–100 risk score**
-- a verdict: **Safe / Suspicious / Scam**
-- the **scam pattern** (KYC fraud, UPI collect request, fake job, and so on)
-- the **phrases that drove the score**, highlighted in the message
-- a **red-flag checklist**
-- plain **"what to do" advice**, including the national cyber-fraud helpline **1930** and **cybercrime.gov.in**
+**Stack:** React + TypeScript (Vite) · FastAPI · MongoDB · scikit-learn
 
-It also has:
-- a UPI ID / `upi://` link / URL checker
-- community fraud reports
-- a history and insights dashboard
+> **Data honesty note.** The Indian scam examples used for training, and all 13 scam-pattern labels, are **synthetic** (generated from templates in this repo). The only real labelled data is English SMS spam from the UK and Singapore (UCI). A model trained only on the synthetic data scores F1 0.99 on synthetic test messages but **0.25 on real SMS**. See [Results](#results).
 
-Stack: **React (Vite, TypeScript) · FastAPI · MongoDB · scikit-learn**
+## Demo
 
-![Check page](docs/screenshots/check-scam.png)
+![Check page with a KYC scam](docs/screenshots/check-scam.png)
 
-| UPI & link checker | Insights |
+| Model card | Insights (demo account, seeded data) |
 |---|---|
-| ![UPI](docs/screenshots/upi-checker.png) | ![Insights](docs/screenshots/insights.png) |
+| ![Model card](docs/screenshots/model-card.png) | ![Insights](docs/screenshots/insights.png) |
 
----
+## Problem
 
-## Features
+- Indian phone users get a steady stream of fraud messages: fake KYC and "account blocked" SMS, UPI "collect requests" dressed up as refunds, task-based job scams, fake electricity-disconnection notices, OTP-harvesting calls.
+- Most victims lose money because they act within minutes: they click a link, share an OTP, or enter a UPI PIN "to receive money".
+- A person needs a quick second opinion that explains **why** a message looks risky and what to do next.
 
-1. **Message check** (the first screen after login)
-   - Analysis runs live as you type (debounced 400 ms). Stale responses are discarded.
-   - "Save to history" stores the result.
-   - The optional sender ID is checked against the DLT header format (`VM-HDFCBK`). A personal mobile number that claims to be a bank is flagged.
-   - Highlights come in three layers:
-     - model token weights (red tint, darker = stronger)
-     - rule hits (red underline)
-     - identifiers reported by other users (amber)
-2. **UPI & link checker**
-   - **UPI IDs:** format check, known PSP handles (`okaxis`, `ybl`, `paytm`, …), look-alike handles by edit distance (`@okaxls`), bait words (`refund`, `kyc`, `support`, `customercare`…) and brand names inside personal IDs.
-   - **URLs:** shorteners, raw IPs, punycode, look-alike bank/brand domains (edit distance ≤ 2), brand names on unofficial domains, suspicious TLDs, plain `http`, `.apk` downloads.
-   - **`upi://pay` links:** parsed into payee, amount and note. The checker warns that such a link always pays *out* of your account.
-3. **Community reports**
-   - A logged-in user can report a phone number, UPI ID or URL. Values are normalised first (`+91 98765-43210` → `9876543210`).
-   - A **unique compound index** `(user_id, kind, value)` stops duplicate reports, so a count of reports is a count of distinct users.
-   - Reports raise the risk score of any message that contains the identifier.
-4. **History & insights**
-   - History uses cursor pagination (by `_id`) and can be filtered by verdict, category and text. Each row expands to show the highlighted analysis.
-   - The insights page is built from one `$facet` aggregation:
-     - checks per day (IST, dense 30-day series)
-     - breakdown by pattern
-     - share flagged
-     - red-flag frequency
-   - It also shows the globally most-reported identifiers and a model card.
+## Solution
 
----
+Paste a message and ScamShield returns:
+- a **0–100 risk score** and a verdict (**Safe / Suspicious / Scam**), or an explicit **"Insufficient confidence"** when it should not decide
+- the **calibrated probability** from the model and a confidence level
+- the likely **scam pattern** (13 classes, trained on synthetic labels)
+- the **phrases that drove the score**, highlighted in the message
+- a **red-flag checklist** (asks for OTP/PIN, collect request, look-alike links, non-official sender, …)
+- concrete **advice**, including the national cyber-fraud helpline **1930** and cybercrime.gov.in
+
+The app also has a UPI ID / `upi://` link / URL checker, community fraud reports, history, and a model card page.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  subgraph Browser["React app (Vite)"]
+    C[Check] --- L[UPI & Links] --- R[Reports] --- H[History] --- I[Insights] --- M[Model]
+  end
+  Browser -- "/api (JWT bearer)" --> API
+  subgraph API["FastAPI"]
+    direction TB
+    RT["routers: auth, check, lookup, reports, insights"]
+    SV["services: identifiers, rules, upi, urls, community"]
+    AN["analyzer: noisy-OR fusion + operating points + abstention"]
+    CL["classifier: versioned artifact + model card + explanations"]
+    RT --> SV --> AN --> CL
+  end
+  CL -- "joblib + card.json" --> ART[(models/scamshield-2.0.0)]
+  API --> DB[(MongoDB: users, checks, reports)]
+  subgraph Offline["Offline ML (backend/ml, experiments/)"]
+    D[data loaders + manifest] --> T[train / evaluate / errors]
+  end
+  T --> ART
 ```
- Browser (React + Vite)                         FastAPI (uvicorn :8001)                      MongoDB
- ┌───────────────────────┐   /api/* (proxy)   ┌──────────────────────────────────────┐   ┌──────────────┐
- │ Check  UPI&Links      │ ─────────────────▶ │ routers/ check  lookup  reports      │──▶│ users        │
- │ Reports History       │   JWT bearer       │          insights  auth              │   │ checks       │
- │ Insights (recharts)   │ ◀───────────────── │ services/                            │   │ reports      │
- └───────────────────────┘                    │   identifiers  (regex extract+norm)  │   └──────────────┘
-                                              │   rules        (red-flag checklist)  │
-                                              │   upi / urls   (identifier analysis) │
-                                              │   classifier   (joblib model, spans) │◀── models/scamshield.joblib
-                                              │   analyzer     (score fusion)        │     (trained by ml/train.py)
-                                              │   community    (report aggregation)  │
-                                              └──────────────────────────────────────┘
+
+## AI/ML Pipeline
+
+| Step | Code | What happens |
+|---|---|---|
+| 1. Input | `app/schemas.py` | Text of 1–2,000 characters plus an optional sender ID. The request body is capped at 64 KB. |
+| 2. Preprocessing | `ml/preprocess.py` | Lower-case, every digit → `0`. The normaliser is **length-preserving**, so explanation offsets map back to the original text. Input-quality signals are computed: word count, non-Latin script ratio, URL ratio. |
+| 3. Features | `ml/features.py` | TF-IDF word 1–2-grams (12k) + char_wb 3–5-grams (20k) |
+| 4. Model | `ml/models.py` | LogisticRegression (`class_weight=balanced`) with sigmoid calibration over **GroupKFold(3)** by template. A multinomial LogisticRegression gives the 13-way pattern. |
+| 5. Rules and reports | `app/services/rules.py`, `community.py` | 8 text rules plus link, UPI and sender checks. The community factor is the number of distinct users who reported an identifier in the message. |
+| 6. Post-processing | `app/services/analyzer.py` | Noisy-OR fusion into a risk score. Cut-offs come from the **model card**. Safety-floor rules apply. |
+| 7. Confidence / abstention | `analyzer.py` | Calibrated probability, confidence level, and `insufficient_confidence` when the input is too short, mostly non-Latin, mostly a link, or the model is in its validation-chosen uncertain band with no supporting evidence |
+| 8. Explanation | `app/services/classifier.py` | Coefficient × tf-idf per n-gram, spread over the characters it covers, summed per word, merged into phrases |
+| 9. API → UI | `routers/check.py` → `VerdictPanel.tsx` | Live analysis while typing (400 ms debounce). Inference runs in a threadpool with a timeout. |
+
+Risk score:
+
+```
+p = calibrated model probability
+R = min(0.6, Σ weights of red-flag rules that fired)
+C = 0 if no identifier was reported, else min(0.65, 0.20 + 0.15·n)
+risk = 100 · (1 − (1 − 0.9·p)(1 − R)(1 − C))
+Safe < suspicious_score ≤ Suspicious < scam_score ≤ Scam        (v2.0.0: 60 and 71, chosen on validation)
 ```
 
-What happens on `POST /api/check/analyze`:
-1. A cheap regex pass extracts identifiers.
-2. One aggregation fetches report counts for those identifiers.
-3. `analyze()` runs in a threadpool (model + rules).
-4. The response returns the score, spans, flags and advice.
-
-The model is loaded once, in the FastAPI lifespan.
-
----
-
-## ML approach
-
-### Data (`backend/ml/generate_dataset.py`, `ml/templates.py`)
-- **Synthetic Indian corpus.** There are 13 categories:
-  - 10 scam types
-  - 3 safe types: legit transactional, promotional, personal
-- The corpus has ~200 hand-written templates, in English and Hinglish.
-- Slot fillers vary the content:
-  - 12 banks, names, companies, couriers, DISCOMs
-  - amounts in many formats, account masks, OTPs, AWBs
-  - phone formats, scam URLs (shorteners, IPs, brand-lookalike hosts on cheap TLDs), UPI IDs, `upi://` links, Telegram links
-- Noise is added on top: typos (deletions, swaps, keyboard neighbours), all-caps or lower-case, `u`/`ur`/`pls`, repeated punctuation.
-- Safe messages deliberately include **hard negatives**: real bank OTPs ("do not share"), debit alerts, refunds, KYC-updated confirmations and cashback promos.
-- **UCI SMS Spam Collection** (downloaded successfully during the build):
-  - 1,600 ham messages are used as `personal`.
-  - 241 spam messages that mention prizes or claims are used as `lottery_prize`.
-  - The other UCI spam (UK ringtone/chat promos) is dropped because it doesn't fit the taxonomy.
-  - If the download fails, the script continues with synthetic data only and says so.
-- **Honest split:**
-  - Every template whose index is `i % 4 == 3` is **held out**. It appears only in the test set, so the test set contains wordings the model has never seen.
-  - UCI rows are split randomly 80/20.
-- Totals: 10,465 messages (8,177 train / 2,288 test).
-
-### Model (`backend/ml/train.py`)
-- **Features:** a `FeatureUnion` of two parts. Together they give 31,869 features.
-  - TF-IDF **word 1–2-grams** (12k features)
-  - TF-IDF **char_wb 3–5-grams** (20k features)
-
-  A length-preserving normaliser runs first. It lower-cases the text and turns every digit into `0`, so offsets still point into the original message.
-- **(a) Scam vs not:** `LogisticRegression(class_weight="balanced")` wrapped in `CalibratedClassifierCV(method="sigmoid", cv=3)`.
-- **(b) Category:** multinomial `LogisticRegression` over 13 classes.
-- The shipped model is refit on all data after evaluation. It is saved with joblib (`models/scamshield.joblib`, **3.2 MB**). Large `stop_words_` attributes are stripped to keep the file small.
-
-### Metrics — held-out templates (`models/metrics.json`)
-
-| Scam vs not (model only) | Precision | Recall | F1 | ROC-AUC |
-|---|---|---|---|---|
-| All held-out (2,288) | **0.971** | **0.991** | **0.981** | 0.999 |
-| Synthetic unseen templates (1,947) | 0.970 | 0.990 | 0.980 | 0.998 |
-| UCI SMS test rows (341) | 0.980 | 1.000 | 0.990 | 1.000 |
-
-Confusion matrix (rows = true, columns = predicted; not_scam / scam): `[[949, 39], [12, 1288]]`
-
-**Category (13-way):** accuracy **0.783**, macro-F1 **0.721**. Per class:
-
-| Class | P | R | F1 | | Class | P | R | F1 |
-|---|---|---|---|---|---|---|---|---|
-| kyc_bank | .91 | 1.00 | .95 | | electricity_bill | 1.00 | .99 | 1.00 |
-| upi_collect | 1.00 | 1.00 | 1.00 | | otp_harvest | .48 | .90 | .62 |
-| job_task | .54 | .61 | .57 | | investment_crypto | .92 | .67 | .77 |
-| lottery_prize | .76 | .96 | .85 | | sextortion_threat | .00 | .00 | .00 |
-| loan_app | 1.00 | .52 | .68 | | legit_transactional | .92 | .79 | .85 |
-| delivery_courier | 1.00 | .23 | .37 | | promotional | 1.00 | .85 | .92 |
-| | | | | | personal | .64 | 1.00 | .78 |
-
-- Some pattern classes generalise poorly to unseen wordings: sextortion, delivery and loan app. The held-out sextortion templates (e.g. "digital arrest" and "crime branch" wordings) share little vocabulary with the training templates. The binary scam detector still catches these messages, and the `threat` rule labels them.
-- **Full system (model + rules, no community reports) on the same held-out set:**
-  - Treating Suspicious or Scam as "flagged": precision 0.923, recall 0.999.
-  - Treating only Scam as "flagged": precision 1.000, recall 0.872.
-- **For contrast:** a naive random split (templates leak between train and test) gives binary F1 0.999 and category macro-F1 1.000. That number is meaningless, which is why the held-out-template split is used.
-
-### Explanations (`app/services/classifier.py`)
-The log-odds of a linear model is `b + Σ wⱼ·xⱼ`. For each feature *j* found in the message, the explanation works like this:
-1. Its contribution `wⱼ·xⱼ` (coefficients averaged over the 3 calibrated folds) is split evenly across its occurrences, then across the characters each occurrence covers. Word n-grams are found with the vectoriser's own token regex; char_wb n-grams are found per padded word.
-2. Per-character scores are summed into word scores.
-3. The top positive words are merged into phrases (≤ 4 words, not across sentences), and stopwords are dropped.
-4. The top 6 phrases are returned with a normalised weight.
-
-This works only because the normaliser preserves length. Rule hits and reported identifiers add their own spans.
-
-### Risk score (`app/services/analyzer.py`)
-```
-p = calibrated scam probability                       (model)
-R = min(0.6, Σ weights of red-flag rules that fired)  (rules)
-C = 0 if nothing reported, else min(0.65, 0.20 + 0.15·n)   n = most distinct reporters of any identifier in the message
-risk = 100 · (1 − (1 − 0.9·p)(1 − R)(1 − C))          (noisy-OR)
-Safe < 35 ≤ Suspicious < 70 ≤ Scam
-```
+Safety floor: if the message asks for an OTP/PIN, contains a collect-request/"PIN to receive" pattern, or asks you to install a remote-access app, the verdict is at least Suspicious.
 
 Rule weights:
 
 | Rule | Weight |
 |---|---|
-| asks for OTP/PIN (with negation check, so "never share your OTP" doesn't fire) | 0.40 |
-| collect request / "PIN to receive" | 0.35 |
-| install app / APK / AnyDesk | 0.25 |
-| threat / arrest / leak | 0.25 |
-| risky link | 0.25 (high) / 0.15 (medium) |
+| asks for OTP/PIN | 0.40 |
+| collect request | 0.35 |
+| risky link | 0.25 / 0.15 |
+| app install | 0.25 |
+| threat | 0.25 |
 | suspicious UPI ID | 0.20 / 0.10 |
 | impersonation | 0.15 |
 | non-official sender | 0.15 |
@@ -177,134 +99,375 @@ Rule weights:
 | urgency | 0.12 |
 | format anomaly | 0.08 |
 
-The category shown is the multiclass argmax, with two exceptions:
-- If the verdict is Scam but the argmax is a safe class, the most likely scam class is shown.
-- If the verdict is Safe but the argmax is a scam class, the most likely safe class is shown.
+## Features
 
----
+- **Message check:**
+  - live verdict, highlighted phrases in three layers (model weight, rule hit, reported identifier)
+  - red-flag checklist, advice, save to history
+- **UPI & link checker:**
+  - UPI ID format, known PSP handles, look-alike handles (edit distance), bait words (`refund`, `kyc`, `support`…), brand names inside personal IDs
+  - URL checks: shorteners, raw IP addresses, punycode, look-alike bank/brand domains, suspicious TLDs, `http`, `.apk`
+  - `upi://pay` link parsing ("this link pays *out*")
+- **Community reports:**
+  - one report per user per identifier (unique compound index), values normalised first
+  - reported identifiers raise the score of any message that contains them
+- **History:** cursor pagination; filters by verdict, category and text; expandable analysis; delete with confirmation.
+- **Insights:** one `$facet` aggregation (checks per day in IST, pattern breakdown, flagged share, red-flag frequency, abstentions) plus the most-reported identifiers.
+- **Model page:** the model card. Training data is tagged *synthetic* / *real*, with per-test-set metrics, baselines, decision rules and limitations.
+- **Demo account:** `demo@scamshield.app` / `demo1234`. Its data is seeded, flagged `demo`, and shown with a banner.
 
-## API
+## Tech Stack
 
-All routes except `/api/health`, `/api/model` and `/api/auth/*` need `Authorization: Bearer <token>`. Errors come back as `{"detail": ..., "status": code}`. Request bodies over 64 KB are rejected with 413.
+| Layer | Choice |
+|---|---|
+| Frontend | React 19, TypeScript, Vite 8, react-router, recharts, lucide-react, plain CSS, IBM Plex (self-hosted); vitest + Testing Library |
+| Backend | FastAPI, Pydantic v2, Motor (async MongoDB), PyJWT, bcrypt |
+| ML | scikit-learn 1.8 (TF-IDF, LogisticRegression, LinearSVC, MultinomialNB, CalibratedClassifierCV), numpy, joblib |
+| Tests | pytest (API, ML, robustness), vitest, Playwright (Python) end-to-end |
 
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/auth/register`, `/api/auth/login` | Get a JWT |
-| GET | `/api/auth/me` | Current user |
-| POST | `/api/check/analyze` | Analyse `{text ≤2000, sender?}` without saving (live) |
-| POST | `/api/checks` | Analyse and save to history |
-| GET | `/api/checks?limit&cursor&verdict&category&q` | Paginated history (`next_cursor`, `total`) |
-| GET / DELETE | `/api/checks/{id}` | Full saved analysis / delete (owner only) |
-| POST | `/api/lookup` | `{value, kind?}`: phone, UPI ID, URL or `upi://` link, with community report summary |
-| POST | `/api/reports` | `{kind: phone\|upi\|url, value, category, note?}`; 409 if already reported |
-| GET | `/api/reports?limit&cursor` | My reports, with global counts |
-| DELETE | `/api/reports/{id}` | Delete my report |
-| GET | `/api/reports/top` | Most-reported identifiers (all users) |
-| GET | `/api/insights?days=30` | Per-day series, categories, totals, flags, top reported |
-| GET | `/api/model` | Evaluation summary from `metrics.json` |
-| GET | `/api/health` | DB ping + model version |
+## Project Structure
 
-Indexes (created in `ensure_indexes`):
-- `users.email` (unique)
-- `checks (user_id, _id)`, `(user_id, verdict, _id)`, `(user_id, category, _id)`, `(user_id, created_at)`
-- `reports (user_id, kind, value)` (unique), `(kind, value)`, `(user_id, _id)`
+```
+backend/
+  app/                  FastAPI app
+    routers/            check, lookup, reports, insights (+ auth.py)
+    services/           analyzer, classifier, rules, identifiers, upi, urls, community
+  ml/
+    data/               schema.py, synthetic.py, uci.py, scamspam.py, registry.py (manifest)
+    preprocess.py  features.py  models.py  evaluate.py  errors.py  experiment.py  train.py
+    templates.py        synthetic message templates + category list
+  data/                 manifest.json + README (raw/ and processed/ are git-ignored)
+  models/               scamshield-2.0.0.joblib (2.3 MB) + scamshield-2.0.0.card.json
+  scripts/seed.py       demo account
+  tests/                test_api, test_auth, test_ml, test_pipeline, test_robustness
+experiments/            configs/, run.py, results/<run_id>/, reports/
+frontend/src/           pages/, components/, lib/, test/
+e2e/                    test_e2e.py, run_e2e.sh
+docs/                   AUDIT.md, screenshots/
+```
 
----
+## Installation
 
-## Setup on Windows
+### Windows (PowerShell)
 
-Prerequisites:
+You need:
 - Python 3.11+
 - Node 20+
 - MongoDB Community Server running on `mongodb://127.0.0.1:27017`
 
 ```powershell
-# 1. backend
+git clone <repo-url> scamshield
 cd scamshield\backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-dev.txt
-copy .env.example .env            # then edit JWT_SECRET
-python -m ml.train                # optional: the trained model is already in models/ (retrain if your scikit-learn version differs)
-python -m scripts.seed            # demo@scamshield.app / demo1234 with 30 days of data
-uvicorn app.main:app --port 8001 --reload
+copy .env.example .env
+python -c "import secrets; print(secrets.token_urlsafe(48))"   # paste into JWT_SECRET in .env
 
-# 2. frontend (new terminal)
-cd scamshield\frontend
+cd ..\frontend
 npm install
-npm run dev                       # http://localhost:5173  (proxies /api to :8001)
 ```
 
-On the sign-in page, "Use demo account" fills in the demo credentials.
+### macOS / Linux
 
-Keyboard shortcuts: keys `1`–`5` switch pages when you are not typing.
+Same steps with these substitutions:
+- `python3 -m venv .venv && source .venv/bin/activate`
+- `cp .env.example .env`
 
-## Tests
+## Environment Variables
+
+Set these in `backend/.env`. See `.env.example`.
+
+| Name | Required | Default | Purpose |
+|---|---|---|---|
+| `ENV` | no | `development` | `production` refuses to start with a weak `JWT_SECRET`. `development`/`test` warn and use a random ephemeral secret. |
+| `JWT_SECRET` | **yes in production** | empty | HS256 signing key, ≥ 32 characters |
+| `JWT_EXPIRE_MINUTES` | no | `10080` | Session length |
+| `MONGO_URI` | no | `mongodb://127.0.0.1:27017` | MongoDB connection |
+| `MONGO_DB` | no | `scamshield` | Database name |
+| `CORS_ORIGINS` | no | `http://localhost:5173,http://127.0.0.1:5173` | Allowed browser origins |
+| `MODEL_VERSION` | no | `2.0.0` | Loads `models/scamshield-<version>.joblib` + `.card.json` |
+| `MODEL_DIR` | no | `backend/models` | Artifact directory |
+| `INFERENCE_TIMEOUT_S` | no | `10` | Per-request analysis timeout (returns 503 when exceeded) |
+| `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW_S` | no | `10` / `300` | Failed-login rate limit per IP + email |
+| `MAX_BODY_BYTES` | no | `64000` | Request size limit |
+| `LOG_LEVEL` | no | `INFO` | Access logs contain method, path, status and time only, never message text |
+
+The frontend reads `VITE_BACKEND` (default `http://127.0.0.1:8001`), used by the Vite dev proxy.
+
+## Running Locally
+
+```powershell
+# terminal 1
+cd backend; .venv\Scripts\activate
+python -m scripts.seed                          # optional demo account with 30 days of sample data
+uvicorn app.main:app --port 8001 --reload       # API docs at http://127.0.0.1:8001/docs
+
+# terminal 2
+cd frontend; npm run dev                        # http://localhost:5173
+```
+
+- `GET /api/health` returns `status: degraded` if the model could not be loaded. In that state, message analysis returns 503, and link checks and reports keep working.
+- Keyboard shortcuts: keys `1`–`6` switch pages when you are not typing.
+
+## Training
 
 ```powershell
 cd backend
-python -m pytest -q                                # 28 tests: API (real Mongo, throwaway DB) + ML/rule unit tests
+python -m ml.data.registry     # downloads UCI (CC BY 4.0) + all-scam-spam (Apache-2.0), generates synthetic data, writes data/manifest.json
+python -m ml.train             # trains v2.0.0 from experiments/configs/combined.json (~20 s on 2 CPUs)
 ```
 
-End-to-end test (Playwright, headless Chromium):
-- The script needs bash (Git Bash or WSL on Windows). Run `python -m playwright install chromium` once.
-- It starts the backend on :8001 and a production build (`vite preview`) on :5173, using a throwaway `scamshield_e2e` database.
-- It seeds the demo account, runs the journey, then stops both servers.
-- The journey: register → KYC scam shows live "Scam" with highlights → save → OTP message shows "Safe" → save → look-alike UPI ID → report a number → a message with that number shows the community flag → history shows 2 → insights charts render (the screenshots come from this run).
+`ml.train` does the following:
+- fits on the **train** split only
+- picks the model threshold, the Suspicious/Scam cut-offs and the uncertain band on **val**
+- scores **test** once
+- writes `models/scamshield-2.0.0.joblib`, its model card, and a full run record in `experiments/results/`
+
+Training is deterministic: re-running it reproduced the same weights and metrics.
+
+## Evaluation
+
+Metrics, and why each one is used:
+- **Precision / recall / F1** at an explicit, validation-chosen threshold. Accuracy is misleading at 13% spam.
+- **PR-AUC**, which is more informative than ROC-AUC under class imbalance.
+- **ROC-AUC.**
+- **Confusion matrix.**
+- **Brier score and ECE** (15 bins, with the reliability table), because the API exposes a probability.
+- **Selective accuracy and coverage** for abstention.
+
+The three evaluation tracks:
+
+| Track | Train + tune | Question |
+|---|---|---|
+| A `syn2real` | synthetic | Does training on synthetic data transfer to real SMS? |
+| B `real_uci` | UCI | How good is the pipeline on real data, and does real training transfer to our scam patterns? |
+| C `combined` (shipped) | synthetic + UCI | Can one model handle both? |
+
+Every track is tested on three sets:
+- `synthetic_test`: held-out templates
+- `uci_test`: real, 774 SMS
+- `all_scam_spam_short`: real, out-of-domain email-like text, 8,389 rows
+
+## Experiments
 
 ```bash
-./e2e/run_e2e.sh
+python experiments/run.py --config experiments/configs/syn2real.json
 ```
 
-Screenshots are written to `docs/screenshots/`.
+- Each run stores `metrics.json`, `config.json`, `env.json` (git commit, library versions, dataset hashes), `summary.md` and `errors_*.csv`.
+- See [experiments/README.md](experiments/README.md) for the run table.
+- See [the three-track report](experiments/reports/2026-09-16-three-tracks.md) for the write-up.
 
----
+## Results
 
-## Viva notes
+All numbers come from runs on **2026-09-16** that are committed in `experiments/results/`. The model is `logreg_cal` at its validation-chosen threshold.
 
-**Why TF-IDF + logistic regression and not a transformer?**
-- It is fast on a CPU (about 5 ms per message) and small (3 MB).
-- It is calibrated, which matters because the probability feeds a formula.
-- Above all it is *explainable*: coefficient × tf-idf is an exact additive contribution to the log-odds. For short SMS text with strong lexical cues it is a strong baseline.
+### Real data (UCI SMS Spam, test split, 774 messages, 96 spam)
 
-**Why character n-grams?**
-They are robust to typos ("immediatly", "verfy"), Hinglish spelling variation, and obfuscated URLs and handles such as `sbi-kyc`.
+| Trained on | P | R | F1 | PR-AUC | ECE |
+|---|---|---|---|---|---|
+| Majority class (A) | 0.124 | 1.000 | 0.221 | 0.124 | 0.485 |
+| Rules only | 0.722 | 0.271 | 0.394 | 0.294 | – |
+| **Synthetic only (A)** | 0.148 | 0.771 | **0.249** | 0.226 | 0.377 |
+| UCI only (B) | 0.990 | 0.979 | 0.984 | 0.995 | 0.011 |
+| Synthetic + UCI (C, shipped) | 1.000 | 0.948 | 0.973 | 0.991 | 0.011 |
+| C, full system (model + rules, flagged if Suspicious or Scam) | 0.989 | 0.948 | 0.968 | – | – |
 
-**Why calibrate?**
-Logistic regression trained with class weights is not guaranteed to be calibrated. Sigmoid calibration (Platt scaling) on 3 folds makes `p` usable as a probability in the noisy-OR.
+### Synthetic data (held-out templates, 1,947 messages): not evidence of real-world accuracy
 
-**Why hold out templates?**
-Otherwise the test set shares wording with the training set, and the naive split shows F1 0.999. Holding out templates measures generalisation to new scam scripts, which is what matters in practice.
+| Trained on | P | R | F1 | PR-AUC |
+|---|---|---|---|---|
+| Rules only | 0.992 | 0.772 | 0.868 | 0.918 |
+| Synthetic only (A) | 0.989 | 0.990 | 0.990 | 0.999 |
+| UCI only (B) | 0.616 | 0.788 | 0.692 | 0.567 |
+| Synthetic + UCI (C, shipped) | 0.942 | 0.980 | 0.961 | 0.993 |
 
-**Why rules as well as ML?**
-- Rules encode domain facts that hold regardless of wording: a PIN is never needed to receive money; a `upi://` link always pays out.
-- They catch novel phrasings the model misses. Example: "tell me the OTP, I am calling from bank" gets p = 0.42 from the model, and the rules push it to Scam.
-- They also make the checklist deterministic and easy to explain.
+The pattern head (13 classes, synthetic labels, shipped model) scores accuracy 0.723 and macro-F1 0.655.
 
-**Why noisy-OR?**
-- Each source can raise the risk on its own.
-- The result stays in [0, 1].
-- No single weak signal saturates the score (R and C are capped).
+### Baselines (Track C, F1 on test)
 
-**How does highlighting map back to text?**
-The normaliser is length-preserving, so character offsets in normalised text equal offsets in the original. The tokenizer and char_wb logic are replicated to locate each n-gram.
+| Model | synthetic_test | uci_test |
+|---|---|---|
+| Majority class | 0.000 | 0.000 |
+| Rules only | 0.868 | 0.394 |
+| TF-IDF + MultinomialNB | 0.948 | 0.925 |
+| LogReg, no class weight | 0.955 | 0.973 |
+| LogReg, balanced, uncalibrated | 0.959 | 0.973 |
+| **LogReg, balanced, calibrated (shipped)** | **0.961** | **0.973** |
+| LinearSVC + calibration | 0.962 | 0.984 |
 
-**How are duplicate reports prevented?**
-With a unique compound index `(user_id, kind, value)`. The API catches `DuplicateKeyError` and returns 409. Because of the index, counting documents equals counting distinct users.
+### Calibration (Track C, ECE)
 
-**How is pagination done?**
-With an `_id` cursor (`_id < cursor`, sorted descending, fetching `limit + 1`). It is stable under inserts and is index-backed, unlike `skip`.
+| Set | Uncalibrated | Calibrated, template-grouped folds | Calibrated, random folds (ablation) |
+|---|---|---|---|
+| val | 0.062 | **0.050** | 0.123 |
+| UCI test | 0.025 | **0.011** | 0.148 |
+| synthetic test | 0.078 | 0.075 | 0.177 |
 
-**Why is `run_in_threadpool` used?**
-Scikit-learn inference is CPU-bound and would block the event loop.
+### Out-of-domain (all-scam-spam short, 8,389 rows)
 
-**What stops one user from reading another's data?**
-Every checks/reports query filters by `user_id` from the JWT. Other users' IDs return 404.
+The shipped model scores F1 0.219 and ROC-AUC 0.446, which is no better than chance. The app should not be used on email text.
 
-## Limitations / future work
-- The training data is mostly synthetic, so real-world accuracy will be lower than the reported numbers. The next step is labelled real Indian SMS (e.g. user-submitted, with consent).
-- Pattern classification is weak for some classes (sextortion, delivery, loan app) on unseen wordings. More varied templates or real data would help, as would a small multilingual transformer (e.g. MuRIL/IndicBERT) with SHAP/attention explanations.
-- The PSP handle list and official-domain list are partial and hard-coded. They should be synced from NPCI and bank sources.
-- Community reports can be gamed by fake accounts. Possible fixes: reputation weighting, rate limits, report moderation, email verification.
-- There is no live URL reputation lookup (e.g. Google Safe Browsing) and no WHOIS domain-age check.
-- The app understands English and romanised Hindi only. Devanagari and other Indian scripts are not in the training data.
+### Operating points (v2.0.0, chosen on validation)
+
+| Setting | Value |
+|---|---|
+| Model threshold | 0.496 |
+| Suspicious | score ≥ 60 (val recall ≥ 0.95) |
+| Scam | score ≥ 71 (val precision ≥ 0.97) |
+| Uncertain band | p in 0.196–0.796 |
+
+- The uncertain band gives val coverage 0.81 and selective accuracy 0.966. That is **below** the 0.98 target, and the card records this.
+- On the UCI test set, the API would abstain on 6 of 774 messages. On the synthetic test set, 324 of 1,947.
+
+## Error Analysis
+
+These patterns come from `experiments/results/combined-train-v2.0.0-20260916-132846/errors_*.csv`.
+
+- **False positives (synthetic test: 75)**
+  - The top 25 all come from one unseen legitimate template: "Money received! Rs X from NAME (upi-id) credited to your BANK account. UPI Ref N" (p 0.69–0.83).
+  - The features that push them are the digit-shape n-grams `000` / `0000` / `00000` and "account".
+  - Mapping every digit to `0` makes long amounts and reference numbers look like the big amounts in scam templates. A number-length bucket would be the next thing to try.
+- **False negatives (synthetic test: 25)**
+  - Mostly Hinglish: "…OTP aa gaya, please bhej do jaldi" (p ≈ 0.1) and "Tumhari video mere paas hai … bhejo warna…".
+  - Casual words (`do`, `mere`, `ko`) carry negative weight after training on UCI chat messages.
+  - The rules catch the OTP request (safety floor → Suspicious). The Hinglish sextortion wording has no rule and is still missed.
+- **UCI test: 0 false positives, 5 false negatives.** All are chatty marketing ("Will u meet ur dream partner soon? … txt HORO", "Are you unique enough?") that reads like a personal message. UCI labels this as spam; ScamShield's notion of "scam" arguably would not.
+
+## API Documentation
+
+Interactive docs: `http://127.0.0.1:8001/docs` (OpenAPI).
+
+Errors come back as `{"detail": ..., "status": code}`. All routes except health, model and auth need `Authorization: Bearer <token>`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/auth/register`, `/api/auth/login` | JWT. Login is rate-limited (429). |
+| GET | `/api/auth/me` | Current user (`is_demo`) |
+| POST | `/api/check/analyze` | Analyse `{text, sender?}` without saving. Returns score, verdict, **status**, **abstain_reasons**, **scam_probability**, **confidence_level**, thresholds, spans, flags, identifiers, advice. |
+| POST | `/api/checks` | Analyse and save |
+| GET | `/api/checks?limit&cursor&verdict&category&q` | Paginated history |
+| GET / DELETE | `/api/checks/{id}` | Owner-only detail / delete |
+| POST | `/api/lookup` | Phone / UPI ID / URL / `upi://` link check with a community report summary |
+| POST / GET | `/api/reports` | Create a report (409 on duplicate) / list my reports |
+| DELETE | `/api/reports/{id}` | Withdraw a report |
+| GET | `/api/reports/top` | Most-reported identifiers (`demo_only` flag) |
+| GET | `/api/insights?days=30` | Dashboard aggregation |
+| GET | `/api/model` | Model card of the loaded artifact |
+| GET | `/api/health` | DB + model status (`ok` / `degraded`) |
+
+## Screenshots
+
+| | |
+|---|---|
+| UPI & link checker | ![UPI](docs/screenshots/upi-checker.png) |
+| Mobile (375 px) | ![Mobile](docs/screenshots/mobile-check.png) |
+
+All screenshots are generated by the Playwright run (`e2e/run_e2e.sh`) against the real app.
+
+## Technical Deep Dive
+
+**Why TF-IDF + logistic regression?**
+- SMS scams are short and lexically loud ("KYC", "blocked", "collect request").
+- A linear model on n-grams is strong on this kind of text, runs in about 5 ms on a CPU, fits in 2.3 MB, and is exactly explainable: coefficient × feature value is an additive contribution to the log-odds.
+- A transformer would need real labelled Indian data that does not exist here. Track A shows that a stronger model trained on synthetic data would only fit the synthetic templates better.
+
+**Why these features?**
+- Word bigrams capture phrases.
+- char_wb 3–5-grams are robust to typos ("immediatly"), Hinglish spelling variation, and obfuscated links (`sbi-kyc`).
+- The digit → `0` normalisation generalises amounts and OTPs. The error analysis shows it also causes false positives on long legitimate amounts.
+
+**Baselines.**
+- The majority class sets the floor.
+- **Rules only** shows what hand-written knowledge achieves: very precise on Indian scam patterns (P 0.99), useless on UK spam (R 0.27).
+- NB and LinearSVC show that the choice of linear model matters little. LinearSVC is marginally better on UCI, but logistic regression was kept for explanation and calibration.
+
+**Inference.**
+- A regex pass extracts identifiers.
+- One aggregation fetches their report counts.
+- Model and rules run in a threadpool with a timeout.
+- Scores are fused and the thresholds are applied.
+- The model is loaded once, at startup. If it fails to load, the API reports a degraded state instead of crashing.
+
+**Confidence.**
+- Probabilities are sigmoid-calibrated. Calibration folds are **grouped by template**: with random folds, the same template sits on both sides, and calibration made ECE worse (0.123 vs 0.050 on val).
+- Abstention uses cheap input checks plus a validation-chosen uncertain band. The band applies only when rules and reports are silent.
+
+**Failure modes.**
+- Wordings not in the templates.
+- Hinglish threats.
+- Long legitimate amounts.
+- Marketing written as chat.
+- Email text.
+- Non-Latin scripts (the app abstains).
+- Community reports can be gamed.
+
+**Metrics that matter.**
+- For "should I trust this message?", **recall on scams** at the Suspicious level (missing a scam costs money) and **precision at the Scam level** (crying wolf erodes trust). The operating points are chosen for exactly those two targets.
+
+**Data required.**
+- A labelled set of real Indian scam and legitimate SMS/WhatsApp messages, ideally with pattern labels.
+- The closest candidate found (`gandharvbakshi/SMS-dataset-OTP-OTP_INTENT_Phishing`) is gated. The loader interface in `ml/data/` is ready for it.
+
+**Scaling.**
+- The model is stateless and small, so API replicas scale horizontally.
+- The login rate limiter is per process and would need Redis.
+- Report counts use an indexed `(kind, value)` aggregation.
+- History uses `_id` cursors.
+
+**For production.**
+- Real data and periodic retraining.
+- Drift monitoring on score distributions and abstention rate.
+- Report moderation and reputation weighting.
+- URL reputation / domain-age lookups.
+- Secrets in a vault, HTTPS only, audit logging without message bodies.
+- A feedback loop from user corrections.
+
+## Limitations
+
+- The pattern (category) head is trained only on **synthetic** labels.
+- Real labelled data is generic English spam (UK/Singapore, 2011), not Indian UPI/KYC fraud, and it counts marketing as spam.
+- On the validation mix, the uncertain band misses its 98% selective-accuracy target.
+- English and romanised Hindi only. The app is poor on email-style text.
+- The PSP handle and official-domain lists are partial and hard-coded.
+- No repeated-seed variance or confidence intervals: experiment not run.
+
+## Future Work
+
+- Evaluate on a real labelled Indian scam SMS dataset (dataset required before evaluation).
+- Number-length tokens to fix the "Money received" false positives. Hinglish threat rules.
+- A small multilingual transformer (e.g. MuRIL), compared against this baseline once real data exists.
+- Bootstrap confidence intervals and repeated seeds.
+- Moderated, reputation-weighted community reports.
+
+## Testing
+
+```powershell
+cd backend;  python -m pytest -q          # 56 tests: API, auth, ML inference, pipeline units, robustness/security
+cd frontend; npm test                     # 14 vitest tests: verdict/abstention rendering, highlights, confirm dialog, report form, history error state
+./e2e/run_e2e.sh                          # Playwright journey (needs bash: Git Bash/WSL on Windows; run `python -m playwright install chromium` once)
+```
+
+The E2E journey covers:
+1. Register.
+2. A KYC scam shows a live "Scam" with highlights, then save.
+3. A bank OTP message shows "Safe", then save.
+4. A fragment shows "Insufficient confidence".
+5. A look-alike UPI ID is flagged.
+6. Report a number; a message with that number shows the community flag.
+7. History shows 2 checks.
+8. The Insights and Model pages render.
+9. The demo account shows its demo banner, and a delete goes through the confirm dialog.
+
+CI (`.github/workflows/ci.yml`) runs pytest with a MongoDB service, then the frontend build and unit tests.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+Dataset licences:
+- UCI SMS Spam Collection: CC BY 4.0
+- all-scam-spam: Apache-2.0
+
+Neither dataset is redistributed in this repo.
