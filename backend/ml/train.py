@@ -1,187 +1,141 @@
-"""Train and evaluate the ScamShield text models.
+"""Train the production model and write a versioned artifact + model card.
 
-    python -m ml.train            # generates the dataset if missing, trains, evaluates,
-                                  # writes models/scamshield.joblib and models/metrics.json
+    python -m ml.train                                   # combined recipe, version 2.0.0
+    python -m ml.train --config ../experiments/configs/combined.json --version 2.0.0
 
-Features : TF-IDF word 1-2 grams  +  TF-IDF char_wb 3-5 grams (one shared FeatureUnion)
-Model (a): scam vs not-scam  -> LogisticRegression wrapped in CalibratedClassifierCV (sigmoid)
-Model (b): 13-way category   -> multinomial LogisticRegression
-Evaluation uses HELD-OUT TEMPLATES (see ml/templates.py), and a naive random split is
-reported alongside it only to show how optimistic template leakage would be.
+What it does (see ml/experiment.py for the details):
+  1. builds / loads the datasets listed in the config (synthetic + real UCI),
+  2. fits TF-IDF features + calibrated logistic regression + the category head on TRAIN,
+  3. evaluates every baseline on VAL / TEST and picks operating points on VAL,
+  4. records the run in experiments/results/<run_id>/ (metrics, config, env, errors),
+  5. saves models/scamshield-<version>.joblib and models/scamshield-<version>.card.json.
+
+The shipped model is the one trained on the TRAIN split only - it is exactly the model whose
+test metrics are reported (no refit on validation or test data).
 """
 from __future__ import annotations
 
-import csv
+import argparse
 import json
-import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
-import numpy as np
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (accuracy_score, classification_report, confusion_matrix,
-                             precision_recall_fscore_support, roc_auc_score)
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import FeatureUnion
 
-from app.services.textprep import WORD_TOKEN_PATTERN, normalize
+from .experiment import REPO_ROOT, env_info, run_experiment, write_run
+from .templates import ALL_CATEGORIES, CATEGORY_LABELS
 
-from . import generate_dataset
-from .templates import ALL_CATEGORIES
+BACKEND = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG = REPO_ROOT / "experiments" / "configs" / "combined.json"
+DEFAULT_VERSION = "2.0.0"
 
-ROOT = Path(__file__).resolve().parents[1]
-MODEL_PATH = ROOT / "models" / "scamshield.joblib"
-METRICS_PATH = ROOT / "models" / "metrics.json"
-MODEL_VERSION = "1.0"
-
-
-def load_rows() -> list[dict]:
-    path = generate_dataset.DATA_DIR / "dataset.csv"
-    if not path.exists():
-        generate_dataset.build(path)
-    with path.open(encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+LIMITATIONS = [
+    "The 13-way scam category head is trained ONLY on synthetic, template-generated Indian messages; its "
+    "labels have never been validated on real messages.",
+    "The only real labelled SMS data (UCI SMS Spam Collection, 2011) is English, UK/Singapore and "
+    "labels generic spam vs ham - not Indian UPI/KYC fraud, and it counts marketing as spam.",
+    "Trained on English and romanised Hindi only; Devanagari and other scripts trigger 'insufficient confidence'.",
+    "Out-of-domain email-style spam (all-scam-spam short subset) is detected poorly - see the model card metrics.",
+    "Scam scripts change quickly; a TF-IDF model only knows words it has seen.",
+    "Probabilities are calibrated on the validation mix of synthetic + UCI data; calibration on real Indian "
+    "traffic is not measured.",
+]
 
 
-def make_features() -> FeatureUnion:
-    word = TfidfVectorizer(preprocessor=normalize, token_pattern=WORD_TOKEN_PATTERN, ngram_range=(1, 2),
-                           min_df=2, max_features=12000, sublinear_tf=True, dtype=np.float32)
-    char = TfidfVectorizer(preprocessor=normalize, analyzer="char_wb", ngram_range=(3, 5),
-                           min_df=3, max_features=20000, sublinear_tf=True, dtype=np.float32)
-    return FeatureUnion([("word", word), ("char", char)])
-
-
-def make_binary() -> CalibratedClassifierCV:
-    base = LogisticRegression(C=4.0, max_iter=3000, class_weight="balanced")
-    return CalibratedClassifierCV(base, method="sigmoid", cv=3)
-
-
-def make_category() -> LogisticRegression:
-    return LogisticRegression(C=8.0, max_iter=3000, class_weight="balanced")
-
-
-def fit(texts, y_bin, y_cat):
-    feats = make_features()
-    X = feats.fit_transform(texts)
-    for _, vec in feats.transformer_list:
-        vec.stop_words_ = None  # large and only needed for introspection; keeps the file small
-    binary = make_binary().fit(X, y_bin)
-    category = make_category().fit(X, y_cat)
-    return feats, binary, category
-
-
-def evaluate(feats, binary, category, texts, y_bin, y_cat) -> dict:
-    X = feats.transform(texts)
-    proba = binary.predict_proba(X)[:, 1]
-    pred = (proba >= 0.5).astype(int)
-    p, r, f1, _ = precision_recall_fscore_support(y_bin, pred, average="binary", zero_division=0)
-    cat_pred = category.predict(X)
-    labels = [c for c in ALL_CATEGORIES if c in set(y_cat) | set(cat_pred)]
-    return {
-        "n": len(texts),
-        "binary": {
-            "precision": round(float(p), 4), "recall": round(float(r), 4), "f1": round(float(f1), 4),
-            "accuracy": round(float(accuracy_score(y_bin, pred)), 4),
-            "roc_auc": round(float(roc_auc_score(y_bin, proba)), 4) if len(set(y_bin)) > 1 else None,
-            "confusion_matrix": {"labels": ["not_scam", "scam"],
-                                 "matrix": confusion_matrix(y_bin, pred, labels=[0, 1]).tolist()},
-        },
-        "category": {
-            "accuracy": round(float(accuracy_score(y_cat, cat_pred)), 4),
-            "macro_f1": round(float(precision_recall_fscore_support(y_cat, cat_pred, average="macro", zero_division=0)[2]), 4),
-            "per_class": {k: {m: round(float(v), 4) for m, v in d.items()}
-                          for k, d in classification_report(y_cat, cat_pred, labels=labels, output_dict=True,
-                                                            zero_division=0).items() if k in labels},
-            "confusion_matrix": {"labels": labels,
-                                 "matrix": confusion_matrix(y_cat, cat_pred, labels=labels).tolist()},
-        },
-    }
-
-
-def evaluate_system(feats, binary, category, rows) -> dict:
-    """Score the held-out rows with the complete analyzer (model + rules, no community reports)
-    using the TRAIN-ONLY model, so this is still an unseen-template evaluation."""
-    import tempfile
-
-    from app.services import analyzer, classifier
-
-    with tempfile.TemporaryDirectory() as d:
-        tmp = Path(d) / "m.joblib"
-        joblib.dump({"version": "eval", "features": feats, "binary": binary, "category": category}, tmp)
-        old = classifier._model
-        classifier._model = classifier.ScamModel(tmp)
-        try:
-            verdicts = [analyzer.analyze(r["text"], None, {})["verdict"] for r in rows]
-        finally:
-            classifier._model = old
-    y = [int(r["is_scam"]) for r in rows]
+def headline(res: dict, main: str) -> dict:
     out = {}
-    for name, positive in (("flagged_if_not_safe", {"Scam", "Suspicious"}), ("flagged_if_scam", {"Scam"})):
-        pred = [int(v in positive) for v in verdicts]
-        p, r_, f1, _ = precision_recall_fscore_support(y, pred, average="binary", zero_division=0)
-        out[name] = {"precision": round(float(p), 4), "recall": round(float(r_), 4), "f1": round(float(f1), 4),
-                     "confusion_matrix": confusion_matrix(y, pred, labels=[0, 1]).tolist()}
-    out["verdict_counts"] = {v: verdicts.count(v) for v in ("Safe", "Suspicious", "Scam")}
+    for k, t in res["models"][main]["test"].items():
+        m = t["at_tuned"]
+        out[k] = {x: m[x] for x in ("n", "precision", "recall", "f1", "roc_auc", "pr_auc", "brier", "ece")}
     return out
 
 
-def cols(rows):
-    return [r["text"] for r in rows], np.array([int(r["is_scam"]) for r in rows]), np.array([r["category"] for r in rows])
+def build_card(cfg: dict, res: dict, version: str, run_id: str) -> dict:
+    main = cfg["main_model"]
+    env = env_info()
+    baselines = {name: {k: {x: t["at_tuned"][x] for x in ("precision", "recall", "f1", "pr_auc")}
+                        for k, t in m["test"].items()} for name, m in res["models"].items()}
+    calib = {}
+    for name in ("logreg_uncal", "logreg_cal"):
+        if name in res["models"]:
+            calib[name] = {k: {"brier": t["at_default"]["brier"], "ece": t["at_default"]["ece"]}
+                           for k, t in res["models"][name]["test"].items()}
+            calib[name]["val"] = {"brier": res["models"][name]["val"]["brier"], "ece": res["models"][name]["val"]["ece"]}
+    datasets = []
+    for name, info in res["data"].items():
+        datasets.append({k: info.get(k) for k in ("name", "kind", "version", "source_url", "licence",
+                                                   "processed_sha256", "raw_sha256", "counts", "description")})
+    return {
+        "model_name": "scamshield-text",
+        "model_version": version,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "experiment_run": run_id,
+        "git_commit": env["git_commit"],
+        "intended_use": "Assist a person in judging whether an SMS / WhatsApp message is a scam. "
+                        "Advisory only - not a guarantee, not for automated blocking.",
+        "pipeline": ["normalise text (lower-case, digits->0, length preserving)",
+                     "TF-IDF word 1-2-grams + char_wb 3-5-grams",
+                     f"{main}: LogisticRegression(class_weight=balanced) + sigmoid calibration, GroupKFold(3)",
+                     "multinomial LogisticRegression category head (synthetic labels)",
+                     "rule engine + community reports fused with noisy-OR",
+                     "operating points + uncertain band chosen on validation"],
+        "training_data": {
+            "datasets": datasets,
+            "train_rows": res["sizes"]["train"],
+            "val_rows": res["sizes"]["val"],
+            "contains_synthetic": any(d["kind"] == "synthetic" for d in datasets),
+            "note": "synthetic_in is SYNTHETIC (templated). uci_sms_spam is REAL but generic English spam.",
+        },
+        "preprocessing_version": env["preprocess_version"],
+        "hyperparameters": {"features": cfg.get("features"), "model": cfg.get("model_params"), "seed": cfg.get("seed")},
+        "libraries": env["libraries"],
+        "python": env["python"],
+        "operating_points": res["system"]["operating_points"],
+        "metrics": {
+            "main_model_test": headline(res, main),
+            "full_system_test": {k: {a: {x: v[a][x] for x in ("precision", "recall", "f1")}
+                                     for a in ("flag_if_suspicious_or_scam", "flag_if_scam")} |
+                                 {"verdict_counts": v["verdict_counts"], "abstention": v["abstention_uncertain_band"]}
+                                 for k, v in res["system"]["test"].items()},
+            "category_head_test": {k: {"accuracy": c["accuracy"], "macro_f1": c["macro_f1"], "n": c["n"]}
+                                   for k, c in res.get("category", {}).items()},
+            "baselines_test_at_val_threshold": baselines,
+            "calibration": calib,
+        },
+        "test_set_notes": {
+            "synthetic_test": "SYNTHETIC - held-out templates, never seen in training",
+            "uci_test": "REAL - UCI SMS Spam Collection, stratified 15% test split",
+            "all_scam_spam_short": "REAL - multilingual email/message spam, out-of-domain stress test",
+        },
+        "categories": {c: CATEGORY_LABELS[c] for c in ALL_CATEGORIES},
+        "limitations": LIMITATIONS,
+    }
 
 
 def main() -> None:
-    t0 = time.time()
-    rows = load_rows()
-    train = [r for r in rows if r["split"] == "train"]
-    test = [r for r in rows if r["split"] == "test"]
-    print(f"rows: {len(rows)}  train: {len(train)}  held-out test: {len(test)}")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    ap.add_argument("--version", default=DEFAULT_VERSION)
+    ap.add_argument("--model-dir", type=Path, default=BACKEND / "models")
+    args = ap.parse_args()
+    cfg = json.loads(args.config.read_text())
+    run_id = f"{cfg['name']}-train-v{args.version}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    out = REPO_ROOT / "experiments" / "results" / run_id
+    res = run_experiment(cfg, out)
+    write_run(cfg, res, out)
+    fitted = res["_fitted"]
+    if fitted["category"] is None:
+        raise SystemExit("config must enable category_head for a production model")
 
-    feats, binary, category = fit(*cols(train))
-    held = evaluate(feats, binary, category, *cols(test))
-    syn_test = [r for r in test if r["source"] != "uci"]
-    uci_test = [r for r in test if r["source"] == "uci"]
-    by_source = {"synthetic_heldout_templates": evaluate(feats, binary, category, *cols(syn_test))["binary"]}
-    if uci_test:
-        by_source["uci_sms_spam"] = evaluate(feats, binary, category, *cols(uci_test))["binary"]
-
-    system = evaluate_system(feats, binary, category, test)
-    print("held-out  full system (model + rules):", system)
-
-    # Naive random split (templates leak between train and test) -- for contrast only.
-    tr, te = train_test_split(rows, test_size=0.2, random_state=0, stratify=[r["category"] for r in rows])
-    nf, nb, nc = fit(*cols(tr))
-    naive = evaluate(nf, nb, nc, *cols(te))
-
-    print("held-out  binary:", {k: v for k, v in held["binary"].items() if k != "confusion_matrix"})
-    print("held-out  category acc / macro-F1:", held["category"]["accuracy"], held["category"]["macro_f1"])
-    print("naive     binary F1:", naive["binary"]["f1"], " category macro-F1:", naive["category"]["macro_f1"])
-
-    # Final model: refit on everything (train + held-out) before shipping.
-    feats, binary, category = fit(*cols(rows))
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"version": MODEL_VERSION, "features": feats, "binary": binary, "category": category},
-                MODEL_PATH, compress=3)
-
-    metrics = {
-        "model_version": MODEL_VERSION,
-        "dataset": {
-            "total": len(rows), "train": len(train), "test": len(test),
-            "uci_rows": sum(1 for r in rows if r["source"] == "uci"),
-            "per_category": {c: sum(1 for r in rows if r["category"] == c) for c in ALL_CATEGORIES},
-            "n_features": len(feats.get_feature_names_out()),
-        },
-        "heldout_templates": held,
-        "heldout_by_source": by_source,
-        "heldout_full_system": system,
-        "naive_random_split": {"binary": {k: v for k, v in naive["binary"].items() if k != "confusion_matrix"},
-                               "category_macro_f1": naive["category"]["macro_f1"]},
-        "model_file_kb": round(MODEL_PATH.stat().st_size / 1024),
-        "train_seconds": round(time.time() - t0, 1),
-    }
-    METRICS_PATH.write_text(json.dumps(metrics, indent=2))
-    print(f"saved {MODEL_PATH} ({metrics['model_file_kb']} KB) and {METRICS_PATH} in {metrics['train_seconds']}s")
+    args.model_dir.mkdir(parents=True, exist_ok=True)
+    art = args.model_dir / f"scamshield-{args.version}.joblib"
+    card_path = args.model_dir / f"scamshield-{args.version}.card.json"
+    joblib.dump({"version": args.version, "features": fitted["features"], "binary": fitted["binary"],
+                 "category": fitted["category"]}, art, compress=3)
+    card = build_card(cfg, res, args.version, run_id)
+    card["artifact"] = {"file": art.name, "size_kb": round(art.stat().st_size / 1024)}
+    card_path.write_text(json.dumps(card, indent=2) + "\n")
+    print(f"saved {art.name} ({card['artifact']['size_kb']} KB) + {card_path.name}; run {run_id}")
 
 
 if __name__ == "__main__":

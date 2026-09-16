@@ -1,0 +1,6 @@
+error_type,p_scam,threshold,source,category,text,top_tokens
+false_negative,0.0026,0.4957,uci_sms_spam,,"Do you realize that in about 40 years, we'll have thousands of old ladies running around with tattoos?",'ll':-0.16 'that':-0.16 'you':-0.10 'do':-0.08 'about':-0.07 'in':-0.06
+false_negative,0.0881,0.4957,uci_sms_spam,,Not heard from U4 a while. Call me now am here all night with just my knickers on. Make me beg for it like U did last time 01223585236 XX Luv Nikiyu4.net,'my':-0.21 'call me':-0.14 'me':-0.12 'did':-0.10 'not':-0.07 'like':-0.07
+false_negative,0.2697,0.4957,uci_sms_spam,,"Hi babe its Chloe, how r u? I was smashed on saturday night, it was great! How was your weekend? U been missing me? SP visionsms.com Text stop to stop 150p/text",'how':-0.20 'was':-0.13 'its':-0.11 'me':-0.07 'weekend':-0.06 ' i ':-0.06
+false_negative,0.2833,0.4957,uci_sms_spam,,"Will u meet ur dream partner soon? Is ur career off 2 a flyng start? 2 find out free, txt HORO followed by ur star sign, e. g. HORO ARIES",'off':-0.14 'soon':-0.10 'is ur':-0.06 'meet':-0.05 'out':-0.04 ' u ':-0.03
+false_negative,0.3542,0.4957,uci_sms_spam,,Are you unique enough? Find out from 30th August. www.areyouunique.co.uk,'are you':-0.22 'you':-0.11 'out':-0.05 'enough':-0.04 'que ':-0.03 'h? ':-0.03
