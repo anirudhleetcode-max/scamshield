@@ -5,6 +5,9 @@ import { api } from "../lib/api";
 import type { Report, TopReported } from "../lib/types";
 import { CATEGORY_LABELS, SCAM_CATEGORIES } from "../lib/types";
 import { KIND_LABEL, ago } from "../lib/format";
+import ConfirmButton from "../components/ConfirmButton";
+import { SkeletonRows } from "../components/Skeleton";
+import { useToast } from "../lib/toast";
 
 type Page = { items: Report[]; next_cursor: string | null };
 const PLACEHOLDER = { phone: "98765 43210", upi: "name@ybl", url: "suspicious-site.xyz/login" } as const;
@@ -21,6 +24,7 @@ export default function Reports() {
   const [mine, setMine] = useState<Report[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [top, setTop] = useState<TopReported[] | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     const [p, t] = await Promise.all([
@@ -35,9 +39,13 @@ export default function Reports() {
 
   async function more() {
     if (!cursor) return;
-    const p = await api<Page>(`/api/reports?limit=15&cursor=${cursor}`);
-    setMine((m) => [...(m ?? []), ...p.items]);
-    setCursor(p.next_cursor);
+    try {
+      const p = await api<Page>(`/api/reports?limit=15&cursor=${cursor}`);
+      setMine((m) => [...(m ?? []), ...p.items]);
+      setCursor(p.next_cursor);
+    } catch (e) {
+      toast((e as Error).message, { tone: "error" });
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -60,16 +68,21 @@ export default function Reports() {
   }
 
   async function remove(id: string) {
-    await api(`/api/reports/${id}`, { method: "DELETE" });
-    setMine((m) => (m ?? []).filter((r) => r.id !== id));
-    api<{ items: TopReported[] }>("/api/reports/top?limit=10").then((t) => setTop(t.items));
+    try {
+      await api(`/api/reports/${id}`, { method: "DELETE" });
+      setMine((m) => (m ?? []).filter((r) => r.id !== id));
+      toast("Report withdrawn");
+      api<{ items: TopReported[] }>("/api/reports/top?limit=10").then((t) => setTop(t.items)).catch(() => undefined);
+    } catch (e) {
+      toast((e as Error).message, { tone: "error" });
+    }
   }
 
   return (
     <>
       <div className="page-head">
         <h1>Community reports</h1>
-        <p>Report a number, UPI ID or link that tried to scam you. Each account counts once per identifier.</p>
+        <p>Report a number, UPI ID or link that tried to scam you. Each account counts once per identifier. Reports raise the risk score of any message containing that identifier; they are not verified.</p>
       </div>
       <div className="lookup-grid">
         <div>
@@ -115,7 +128,7 @@ export default function Reports() {
 
           <div className="panel section">
             <div className="panel-h"><h2>Your reports</h2></div>
-            {mine === null ? <div className="empty">Loading…</div> : mine.length === 0 ? (
+            {mine === null ? <SkeletonRows rows={3} cols={4} /> : mine.length === 0 ? (
               <div className="empty"><strong>No reports yet</strong>When something tries to scam you, report it here to warn others.</div>
             ) : (
               <div className="table-wrap">
@@ -129,7 +142,13 @@ export default function Reports() {
                         <td className="hide-sm">{CATEGORY_LABELS[r.category]}</td>
                         <td className="n">{r.total_reports}</td>
                         <td className="hide-sm muted">{ago(r.created_at)}</td>
-                        <td className="n"><button className="btn danger sm" aria-label={`Delete report ${r.value}`} onClick={() => remove(r.id)}><Trash2 size={13} /></button></td>
+                        <td className="n">
+                          <ConfirmButton className="btn danger sm" ariaLabel={`Delete report ${r.value}`} title="Withdraw this report?"
+                                         body={<>Your report for <span className="mono">{r.value}</span> will be removed and no longer count toward its community score.</>}
+                                         confirmLabel="Withdraw" onConfirm={() => remove(r.id)}>
+                            <Trash2 size={13} />
+                          </ConfirmButton>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -142,7 +161,7 @@ export default function Reports() {
 
         <aside className="panel">
           <div className="panel-h"><h2>Most reported</h2><span className="right small muted">all users</span></div>
-          {top === null ? <div className="empty">Loading…</div> : top.length === 0 ? (
+          {top === null ? <SkeletonRows rows={5} cols={2} /> : top.length === 0 ? (
             <div className="empty">No reports in the system yet.</div>
           ) : (
             <table className="t" data-testid="top-reported">
@@ -151,7 +170,7 @@ export default function Reports() {
                   <tr key={t.kind + t.value}>
                     <td>
                       <div className="mono" style={{ overflowWrap: "anywhere" }}>{t.value}</div>
-                      <div className="muted small">{KIND_LABEL[t.kind]} · {CATEGORY_LABELS[t.category]}</div>
+                      <div className="muted small">{KIND_LABEL[t.kind]} · {CATEGORY_LABELS[t.category]}{t.demo_only && " · demo seed data"}</div>
                     </td>
                     <td className="n" style={{ fontSize: 18 }}>{t.reports}</td>
                   </tr>

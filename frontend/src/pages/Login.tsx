@@ -88,7 +88,7 @@ export default function Login() {
         </p>
       </div>
       <div className="auth-side">
-        <h2>What a check looks like</h2>
+        <h2>What a check looks like <span className="muted" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(illustration)</span></h2>
         <div className="specimen">
           <div className="preview"><Highlight text={SPECIMEN} spans={SPEC_SPANS} /></div>
           <div className="specimen-foot">

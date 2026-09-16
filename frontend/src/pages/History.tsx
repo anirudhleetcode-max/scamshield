@@ -6,7 +6,10 @@ import type { CheckItem, Verdict } from "../lib/types";
 import { CATEGORY_LABELS } from "../lib/types";
 import { fmtDateTime } from "../lib/format";
 import Highlight from "../components/Highlight";
-import { FlagList } from "../components/VerdictPanel";
+import { Confidence, FlagList } from "../components/VerdictPanel";
+import ConfirmButton from "../components/ConfirmButton";
+import { SkeletonRows } from "../components/Skeleton";
+import { useToast } from "../lib/toast";
 
 type Page = { items: CheckItem[]; next_cursor: string | null; total: number };
 
@@ -21,6 +24,7 @@ export default function History() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, CheckItem>>({});
+  const toast = useToast();
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(q), 300);
@@ -47,25 +51,38 @@ export default function History() {
   }, [verdict, category, query]);
 
   async function more() {
-    const p = await api<Page>(`/api/checks?${qs(cursor)}`);
-    setItems((it) => [...(it ?? []), ...p.items]);
-    setCursor(p.next_cursor);
+    try {
+      const p = await api<Page>(`/api/checks?${qs(cursor)}`);
+      setItems((it) => [...(it ?? []), ...p.items]);
+      setCursor(p.next_cursor);
+    } catch (e) {
+      toast((e as Error).message, { tone: "error" });
+    }
   }
 
   async function toggle(id: string) {
     if (open === id) { setOpen(null); return; }
     setOpen(id);
     if (!detail[id]) {
-      const d = await api<CheckItem>(`/api/checks/${id}`);
-      setDetail((m) => ({ ...m, [id]: d }));
+      try {
+        const d = await api<CheckItem>(`/api/checks/${id}`);
+        setDetail((m) => ({ ...m, [id]: d }));
+      } catch (e) {
+        toast((e as Error).message, { tone: "error" });
+      }
     }
   }
 
   async function remove(id: string) {
-    await api(`/api/checks/${id}`, { method: "DELETE" });
-    setItems((it) => (it ?? []).filter((x) => x.id !== id));
-    setTotal((t) => t - 1);
-    setOpen(null);
+    try {
+      await api(`/api/checks/${id}`, { method: "DELETE" });
+      setItems((it) => (it ?? []).filter((x) => x.id !== id));
+      setTotal((t) => t - 1);
+      setOpen(null);
+      toast("Check deleted");
+    } catch (e) {
+      toast((e as Error).message, { tone: "error" });
+    }
   }
 
   return (
@@ -97,9 +114,8 @@ export default function History() {
         </label>
       </div>
 
-      {error && <p className="error" role="alert">{error}</p>}
       <div className="panel">
-        {items === null ? <div className="empty">Loading…</div> : items.length === 0 ? (
+        {items === null ? (error ? <div className="empty" data-testid="history-error"><strong>Could not load history</strong>{error}</div> : <SkeletonRows rows={6} cols={5} />) : items.length === 0 ? (
           <div className="empty">
             <strong>{verdict || category || query ? "No checks match these filters" : "No saved checks yet"}</strong>
             {verdict || category || query ? "Try clearing a filter." : <>Go to <Link to="/">Check</Link>, paste a message and press “Save to history”.</>}
@@ -116,14 +132,21 @@ export default function History() {
                     <tr className={`click ${open === c.id ? "open" : ""}`} onClick={() => toggle(c.id)} data-testid="history-row"
                         tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") toggle(c.id); }} aria-expanded={open === c.id}>
                       <td className="mono small" style={{ whiteSpace: "nowrap" }}>{fmtDateTime(c.created_at)}</td>
-                      <td><span className={`tag ${c.verdict}`}>{c.verdict}</span></td>
+                      <td>
+                        {c.status === "insufficient_confidence"
+                          ? <span className="tag Unsure" title={`Score band: ${c.verdict}`}>Unsure</span>
+                          : <span className={`tag ${c.verdict}`}>{c.verdict}</span>}
+                        {c.demo && <div className="muted small">demo</div>}
+                      </td>
                       <td className="n">{c.score}</td>
                       <td className="hide-sm small">{c.category_label}</td>
                       <td><div className="clip">{c.text}</div></td>
                       <td className="n">
-                        <button className="btn danger sm" aria-label="Delete check" onClick={(e) => { e.stopPropagation(); remove(c.id); }}>
+                        <ConfirmButton className="btn danger sm" ariaLabel="Delete check" title="Delete this check?"
+                                       body={<>“{c.text.slice(0, 80)}{c.text.length > 80 ? "…" : ""}” will be removed from your history. This cannot be undone.</>}
+                                       onConfirm={() => remove(c.id)}>
                           <Trash2 size={13} />
-                        </button>
+                        </ConfirmButton>
                       </td>
                     </tr>
                     {open === c.id && (
@@ -134,6 +157,7 @@ export default function History() {
                               <div style={{ borderRight: "1px solid var(--rule)" }}>
                                 <div className="preview"><Highlight text={c.text} spans={detail[c.id].result!.spans} /></div>
                                 <div className="panel-b small muted" style={{ paddingTop: 0 }}>
+                                  Confidence: <Confidence level={detail[c.id].result!.confidence_level ?? "high"} /> ·
                                   Sender: <span className="mono">{c.sender ?? "not given"}</span> · model {detail[c.id].result!.components.model.toFixed(2)} ·
                                   rules {detail[c.id].result!.components.rules.toFixed(2)} · community {detail[c.id].result!.components.community.toFixed(2)}
                                 </div>

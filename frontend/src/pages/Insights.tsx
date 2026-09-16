@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../lib/api";
+import { Link } from "react-router-dom";
 import { CATEGORY_LABELS, SAFE_CATEGORIES } from "../lib/types";
+import type { ModelInfo } from "../lib/types";
+import { SkeletonBlock } from "../components/Skeleton";
 import { KIND_LABEL, fmtDay, pct } from "../lib/format";
 
 type Day = { date: string; Safe: number; Suspicious: number; Scam: number };
@@ -9,17 +12,10 @@ type InsightsData = {
   days: number;
   per_day: Day[];
   categories: { category: string; label: string; n: number; avg_score: number }[];
-  totals: { checks: number; flagged: number; scam: number; flagged_share: number; avg_score: number | null; my_reports: number };
+  totals: { checks: number; flagged: number; scam: number; flagged_share: number; avg_score: number | null; my_reports: number;
+    abstained?: number; demo_checks?: number };
   flags: { id: string; n: number }[];
-  top_reported: { kind: string; value: string; reports: number; category: string }[];
-};
-type ModelInfo = {
-  available: boolean;
-  model_version: string;
-  dataset: { total: number; train: number; test: number; uci_rows: number };
-  heldout_binary: { precision: number; recall: number; f1: number; roc_auc: number };
-  heldout_category: { accuracy: number; macro_f1: number };
-  naive_random_split: { binary: { f1: number }; category_macro_f1: number };
+  top_reported: { kind: string; value: string; reports: number; category: string; demo_only?: boolean }[];
 };
 
 const COLORS = { Safe: "#2f7a47", Suspicious: "#b8790b", Scam: "#c42a1f" } as const;
@@ -52,8 +48,8 @@ export default function Insights() {
     api<ModelInfo>("/api/model").then(setModel).catch(() => undefined);
   }, []);
 
-  if (error) return <p className="error">{error}</p>;
-  if (!data) return <div className="empty">Loading insights…</div>;
+  if (error) return <p className="error" role="alert">Could not load insights: {error}</p>;
+  if (!data) return <><div className="page-head"><h1>Insights</h1></div><SkeletonBlock height={90} /><div className="section"><SkeletonBlock height={250} /></div></>;
   const t = data.totals;
   const maxCat = Math.max(1, ...data.categories.map((c) => c.n));
   const maxFlag = Math.max(1, ...data.flags.map((f) => f.n));
@@ -64,13 +60,14 @@ export default function Insights() {
       <div className="page-head">
         <h1>Insights</h1>
         <p>Your last {data.days} days, plus what the community is reporting.</p>
+        {!!t.demo_checks && <span className="right tag plain" data-testid="demo-data-tag">{t.demo_checks} of {t.checks} checks are demo seed data</span>}
       </div>
 
       <div className="stats" data-testid="stats">
         <div className="stat"><div className="label">Checks</div><div className="value">{t.checks}</div><div className="sub">last {data.days} days</div></div>
         <div className="stat"><div className="label">Flagged</div><div className="value">{pct(t.flagged_share)}</div><div className="sub">{t.flagged} suspicious or scam</div></div>
         <div className="stat"><div className="label">Scams caught</div><div className="value" style={{ color: "var(--scam)" }}>{t.scam}</div><div className="sub">score 70+</div></div>
-        <div className="stat"><div className="label">Average score</div><div className="value">{t.avg_score ?? "—"}</div><div className="sub">0 safe · 100 scam</div></div>
+        <div className="stat"><div className="label">Unsure</div><div className="value">{t.abstained ?? 0}</div><div className="sub">insufficient confidence · avg score {t.avg_score ?? "—"}</div></div>
         <div className="stat"><div className="label">Your reports</div><div className="value">{t.my_reports}</div><div className="sub">identifiers flagged</div></div>
       </div>
 
@@ -151,7 +148,7 @@ export default function Insights() {
                 <tbody>
                   {data.top_reported.map((r) => (
                     <tr key={r.kind + r.value}>
-                      <td className="mono" style={{ overflowWrap: "anywhere" }}>{r.value}</td>
+                      <td className="mono" style={{ overflowWrap: "anywhere" }}>{r.value}{r.demo_only && <div className="muted small" style={{ fontFamily: "var(--sans)" }}>demo seed data</div>}</td>
                       <td className="hide-sm muted">{KIND_LABEL[r.kind]}</td>
                       <td className="small">{CATEGORY_LABELS[r.category]}</td>
                       <td className="n">{r.reports}</td>
@@ -164,22 +161,27 @@ export default function Insights() {
         </div>
 
         <div className="panel">
-          <div className="panel-h"><h2>About the model</h2>{model?.available && <span className="right mono small muted">v{model.model_version}</span>}</div>
-          <div className="panel-b" style={{ fontSize: 13, display: "grid", gap: 10 }}>
+          <div className="panel-h"><h2>About the model</h2>{model?.card && <span className="right mono small muted">v{model.card.model_version}</span>}</div>
+          <div className="panel-b" style={{ fontSize: 13, display: "grid", gap: 10 }} data-testid="model-summary">
             <p>TF-IDF word and character n-grams feed a calibrated logistic regression (scam or not) and a 13-way pattern classifier. Rule checks and community reports are combined with the model score.</p>
-            {model?.available ? (
+            {model?.card ? (
               <>
                 <table className="cm">
-                  <thead><tr><th style={{ textAlign: "left" }}>Unseen wordings</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead>
+                  <thead><tr><th style={{ textAlign: "left" }}>Test set</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead>
                   <tbody>
-                    <tr><th style={{ textAlign: "left" }}>Scam vs not</th><td>{model.heldout_binary.precision.toFixed(3)}</td><td>{model.heldout_binary.recall.toFixed(3)}</td><td>{model.heldout_binary.f1.toFixed(3)}</td></tr>
+                    {Object.entries(model.card.metrics.main_model_test).map(([k, m]) => (
+                      <tr key={k}>
+                        <th style={{ textAlign: "left" }}>{k} <span className={model.card!.test_set_notes[k]?.startsWith("SYNTHETIC") ? "synthetic-tag" : "real-tag"}>
+                          {model.card!.test_set_notes[k]?.startsWith("SYNTHETIC") ? "synthetic" : "real"}</span></th>
+                        <td>{m.precision.toFixed(3)}</td><td>{m.recall.toFixed(3)}</td><td>{m.f1.toFixed(3)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-                <p className="small">Pattern accuracy {pct(model.heldout_category.accuracy, 1)} · macro-F1 {model.heldout_category.macro_f1.toFixed(3)} on {model.dataset.test.toLocaleString("en-IN")} held-out messages.
-                  A random split scores F1 {model.naive_random_split.binary.f1.toFixed(3)}, which is too optimistic because the same templates end up in both train and test.</p>
-                <p className="note">Trained on {model.dataset.total.toLocaleString("en-IN")} messages: synthetic Indian templates plus {model.dataset.uci_rows.toLocaleString("en-IN")} from the UCI SMS Spam Collection.</p>
+                <p className="small">The Indian scam examples and pattern labels are <b>synthetic</b> (generated from templates). Real labelled data is limited to English UK/Singapore SMS spam, so these numbers do not show accuracy on real Indian messages.</p>
+                <p><Link to="/model">Full model card, baselines and limitations</Link></p>
               </>
-            ) : <p className="muted">Metrics unavailable — run <span className="mono">python -m ml.train</span>.</p>}
+            ) : <p className="muted">Model card unavailable.</p>}
           </div>
         </div>
       </div>

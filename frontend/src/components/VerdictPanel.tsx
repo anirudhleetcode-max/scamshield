@@ -1,14 +1,18 @@
 import { Link } from "react-router-dom";
 import { Check, X } from "lucide-react";
-import type { Analysis, Flag, Verdict } from "../lib/types";
+import type { Analysis, ConfidenceLevel, Flag, Verdict } from "../lib/types";
 import { KIND_LABEL, pct } from "../lib/format";
 
-export function ScoreMeter({ score, verdict }: { score: number; verdict: Verdict }) {
+type Band = Verdict | "Unsure";
+
+export function ScoreMeter({ score, verdict, cutoffs }: { score: number; verdict: Band; cutoffs: [number, number] }) {
+  const [s, c] = cutoffs;
+  const track = `linear-gradient(to right, var(--safe-tint) 0 ${s}%, var(--sus-tint) ${s}% ${c}%, var(--scam-tint) ${c}% 100%)`;
   return (
     <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score} aria-label="Risk score">
-      <div className="meter-track" />
+      <div className="meter-track" style={{ background: track }} />
       <div className={`meter-fill ${verdict}`} style={{ width: `${score}%` }} />
-      {[35, 70].map((t) => (
+      {cutoffs.map((t) => (
         <span key={t}>
           <span className="meter-tick" style={{ left: `${t}%` }} />
           <span className="meter-scale" style={{ left: `${t}%`, top: 14 }}>{t}</span>
@@ -39,21 +43,55 @@ export function FlagList({ flags }: { flags: Flag[] }) {
   );
 }
 
+const LEVELS: Record<ConfidenceLevel, { n: number; text: string }> = {
+  high: { n: 3, text: "high" },
+  medium: { n: 2, text: "medium — rules or reports overrode the model" },
+  low: { n: 1, text: "low" },
+};
+
+export function Confidence({ level }: { level: ConfidenceLevel }) {
+  const l = LEVELS[level];
+  return (
+    <span className="conf" data-testid="confidence">
+      <span className="conf-dots" aria-hidden>{[1, 2, 3].map((i) => <i key={i} className={i <= l.n ? "on" : ""} />)}</span>
+      {l.text}
+    </span>
+  );
+}
+
 export default function VerdictPanel({ a, pending }: { a: Analysis; pending?: boolean }) {
   const comp = a.components;
+  const unsure = a.status === "insufficient_confidence";
+  const band: Band = unsure ? "Unsure" : a.verdict;
+  const cutoffs: [number, number] = [a.thresholds?.suspicious ?? 50, a.thresholds?.scam ?? 75];
   return (
     <div className={`panel ${pending ? "pending" : ""}`} data-testid="verdict-panel" aria-live="polite">
       <div className="verdict-top">
         <div>
           <div className="muted small">Verdict</div>
-          <div className={`verdict-word ${a.verdict}`} data-testid="verdict">{a.verdict}</div>
+          <div className={`verdict-word ${band}`} data-testid="verdict">{unsure ? "Insufficient confidence" : a.verdict}</div>
+          {unsure && <div className="small muted" data-testid="leaning">Score band would be: {a.verdict}</div>}
         </div>
         <div className="score" data-testid="score">{a.score}<small>/100</small></div>
-        <ScoreMeter score={a.score} verdict={a.verdict} />
+        <ScoreMeter score={a.score} verdict={band} cutoffs={cutoffs} />
       </div>
+      {unsure && (
+        <div className="abstain" data-testid="abstain">
+          <strong>Not enough to decide.</strong>
+          <ul>{a.abstain_reasons.map((r) => <li key={r.id} data-reason={r.id}>{r.text}</li>)}</ul>
+        </div>
+      )}
       <dl className="meta-grid">
+        <dt>Confidence</dt>
+        <dd><Confidence level={a.confidence_level} /></dd>
+        <dt>Model</dt>
+        <dd className="small">
+          <span className="mono">{pct(a.scam_probability, 1)}</span> calibrated scam probability
+          <span className="muted"> · uncertain between {pct(a.thresholds.uncertain_low)}–{pct(a.thresholds.uncertain_high)}</span>
+        </dd>
         <dt>Pattern</dt>
-        <dd data-testid="category"><strong>{a.category_label}</strong> <span className="muted mono small">{pct(a.category_confidence)}</span></dd>
+        <dd data-testid="category"><strong>{a.category_label}</strong> <span className="muted mono small">{pct(a.category_confidence)}</span>
+          <span className="muted small"> · trained on synthetic examples</span></dd>
         <dt>Also close</dt>
         <dd className="small">
           {a.top_categories.filter((c) => c.category !== a.category).slice(0, 2)

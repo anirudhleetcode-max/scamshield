@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Save } from "lucide-react";
 import { api } from "../lib/api";
-import type { Analysis, CheckItem } from "../lib/types";
+import { useToast } from "../lib/toast";
+import type { Analysis, CheckItem, ModelInfo } from "../lib/types";
 import Highlight, { HighlightLegend } from "../components/Highlight";
 import VerdictPanel from "../components/VerdictPanel";
 
@@ -24,8 +25,13 @@ export default function Check() {
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<CheckItem | null>(null);
+  const [model, setModel] = useState<ModelInfo | null>(null);
+  const toast = useToast();
   const seq = useRef(0);
+
+  useEffect(() => {
+    api<ModelInfo>("/api/model").then(setModel).catch(() => setModel(null));
+  }, []);
 
   // live analysis, debounced 400ms; stale responses are discarded by sequence number
   useEffect(() => {
@@ -43,22 +49,17 @@ export default function Check() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [text, sender]);
 
-  useEffect(() => {
-    if (!saved) return;
-    const t = setTimeout(() => setSaved(null), 5000);
-    return () => clearTimeout(t);
-  }, [saved]);
-
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
     setSaving(true);
     try {
       const item = await api<CheckItem>("/api/checks", { method: "POST", json: { text, sender: sender || null } });
-      setSaved(item);
+      const label = item.status === "insufficient_confidence" ? "Insufficient confidence" : item.verdict;
+      toast(`Saved — ${label}, score ${item.score}`, { action: <Link to="/history">View history</Link> });
       if (item.result) setResult({ text, a: item.result });
     } catch (err) {
-      setError((err as Error).message);
+      toast((err as Error).message, { tone: "error" });
     } finally {
       setSaving(false);
     }
@@ -137,19 +138,24 @@ export default function Check() {
               <p style={{ marginTop: 12 }}>
                 {analysing ? "Analysing…" : "No message yet. The verdict, a 0–100 risk score, the red-flag checklist and advice will show here."}
               </p>
-              <p className="small" style={{ marginTop: 12 }}>
-                Scores under 35 are <b style={{ color: "var(--safe)" }}>Safe</b>, 35–69 <b style={{ color: "var(--sus)" }}>Suspicious</b>, 70 and above <b style={{ color: "var(--scam)" }}>Scam</b>.
+              {model?.card ? (
+                <p className="small" style={{ marginTop: 12 }} data-testid="cutoffs">
+                  Scores under {model.card.operating_points.suspicious_score} are <b style={{ color: "var(--safe)" }}>Safe</b>,{" "}
+                  {model.card.operating_points.suspicious_score}–{model.card.operating_points.scam_score - 1}{" "}
+                  <b style={{ color: "var(--sus)" }}>Suspicious</b>, {model.card.operating_points.scam_score} and above{" "}
+                  <b style={{ color: "var(--scam)" }}>Scam</b>. These cut-offs were chosen on a validation split
+                  (model v{model.card.model_version}, <Link to="/model">details</Link>).
+                </p>
+              ) : model && !model.available ? (
+                <p className="error" style={{ marginTop: 12 }}>The model is not available, so messages cannot be analysed right now. UPI and link checks still work.</p>
+              ) : null}
+              <p className="small muted" style={{ marginTop: 12 }}>
+                What is processed: the text you paste and the optional sender. Nothing is stored until you press “Save to history”.
               </p>
             </div>
           )}
         </div>
       </div>
-      {saved && (
-        <div className="toast" role="status" data-testid="saved-toast">
-          Saved — {saved.verdict}, score {saved.score}
-          <Link to="/history">View history</Link>
-        </div>
-      )}
     </>
   );
 }

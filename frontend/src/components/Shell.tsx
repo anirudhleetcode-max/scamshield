@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { BarChart3, Flag, History, Link2, LogOut, MessageSquareWarning } from "lucide-react";
+import { BarChart3, Cpu, Flag, History, Link2, LogOut, MessageSquareWarning } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { ShieldMark } from "./ShieldMark";
 
@@ -9,6 +9,7 @@ const NAV = [
   { to: "/reports", label: "Reports", icon: Flag, k: "3" },
   { to: "/history", label: "History", icon: History, k: "4" },
   { to: "/insights", label: "Insights", icon: BarChart3, k: "5" },
+  { to: "/model", label: "Model", icon: Cpu, k: "6" },
 ];
 
 function Nav() {
@@ -57,9 +58,16 @@ export default function Shell() {
         </div>
         <Nav />
       </header>
-      <main className="main">
-        <Outlet />
-      </main>
+      <div style={{ minWidth: 0 }}>
+        {user?.is_demo && (
+          <div className="demo-banner" role="note" data-testid="demo-banner">
+            Demo account — the history, reports and charts here are seeded sample data generated for this demo, not real user activity.
+          </div>
+        )}
+        <main className="main">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
