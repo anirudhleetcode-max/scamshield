@@ -45,7 +45,7 @@ Dataset names, hashes and row counts are recorded under `metrics.json → data`.
 |---|---|---|---|
 | Track A: synthetic → real | synthetic only | Synthetic test F1 0.990; **real UCI test F1 0.249** | `results/syn2real-20260916-131719` |
 | Track B: real → real | UCI only | UCI test F1 0.984; synthetic test F1 0.692 | `results/real_uci-20260916-131734` |
-| Track C: combined (shipped model v2.0.0) | synthetic + UCI | Synthetic test F1 0.961; UCI test F1 0.973; all-scam-spam (email, out-of-domain) F1 0.219 | `results/combined-train-v2.0.0-20260916-131746` |
+| Track C: combined (shipped model v2.0.0) | synthetic + UCI | Synthetic test F1 0.961; UCI test F1 0.973; all-scam-spam (email, out-of-domain) F1 0.219 | `results/combined-train-v2.0.0-20260916-132846` |
 | Ablation: random calibration folds | same as C | logreg_cal val ECE 0.123 (grouped: 0.050) | `results/ablation_random_calib_folds-20260916-131947` |
 
 The F1 values are for `logreg_cal` at its validation-chosen threshold. All baselines are in each run's `summary.md`.

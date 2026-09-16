@@ -4,9 +4,9 @@
 - `ablation_random_calib_folds-20260916-131947` (ablation)
 - `syn2real-20260916-131719`
 - `real_uci-20260916-131734`
-- `combined-train-v2.0.0-20260916-131746`
+- `combined-train-v2.0.0-20260916-132846`
 
-Tracks A–C were run at git commit `28ed024` and the ablation at `dd3f1fe`, all on a clean tree, with scikit-learn 1.8.0 and Python 3.11.15.
+Tracks A and B were run at git commit `28ed024`, the ablation at `dd3f1fe` and Track C (the shipped model, retrained deterministically after a model-card field was added) at `45e01a1`, all on a clean tree, with scikit-learn 1.8.0 and Python 3.11.15.
 
 **Datasets** (full details in `backend/data/manifest.json`):
 - `synthetic_in` v2.0 (**synthetic**): 8,624 rows, split by template (train 5,463 / val 1,214 / test 1,947).

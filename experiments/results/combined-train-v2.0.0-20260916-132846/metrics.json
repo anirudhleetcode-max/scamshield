@@ -234,7 +234,7 @@
           }
         }
       },
-      "fit_seconds": 0.13
+      "fit_seconds": 0.11
     },
     "rules_only": {
       "threshold_strategy": "max_f1 on val",
@@ -414,7 +414,7 @@
           }
         }
       },
-      "fit_seconds": 3.81
+      "fit_seconds": 3.64
     },
     "nb": {
       "threshold_strategy": "max_f1 on val",
@@ -1954,7 +1954,7 @@
           }
         }
       },
-      "fit_seconds": 0.46
+      "fit_seconds": 0.45
     },
     "logreg_uncal": {
       "threshold_strategy": "max_f1 on val",
@@ -2742,7 +2742,7 @@
           }
         }
       },
-      "fit_seconds": 0.65
+      "fit_seconds": 0.6
     },
     "logreg_cal": {
       "threshold_strategy": "max_f1 on val",
@@ -3506,7 +3506,7 @@
           }
         }
       },
-      "fit_seconds": 1.3
+      "fit_seconds": 1.1
     },
     "linsvc_cal": {
       "threshold_strategy": "max_f1 on val",
@@ -4294,7 +4294,7 @@
           }
         }
       },
-      "fit_seconds": 0.63
+      "fit_seconds": 0.6
     }
   },
   "system": {
@@ -4912,5 +4912,5 @@
     "all_scam_spam_short": 8389,
     "n_features": 32000
   },
-  "seconds": 15.7
+  "seconds": 14.6
 }
