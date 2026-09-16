@@ -88,11 +88,11 @@ class RuleCache:
         return [self._c[t][1] for t in texts]
 
 
-def fit_model(model, X, y, groups):
+def fit_model(model, X, y, groups=None):
     """Calibrated models use GROUP-aware folds (template id for synthetic rows): with random
     folds the same template sits on both sides, fold predictions look over-confident and the
     sigmoid is fit too steep."""
-    if isinstance(model, CalibratedClassifierCV):
+    if isinstance(model, CalibratedClassifierCV) and groups is not None:
         n = model.cv if isinstance(model.cv, int) else 3
         model.cv = list(GroupKFold(n_splits=n).split(X, y, groups))
         model.fit(X, y)
@@ -119,7 +119,8 @@ def run_experiment(cfg: dict, out_dir: Path | None = None, log=print) -> dict:
     Xva = feats.transform([r["text"] for r in val])
     Xte = {k: feats.transform([r["text"] for r in v]) for k, v in tests.items()}
     ytr, yva = _y(train), _y(val)
-    groups = np.array([r["group"] for r in train])
+    # calibration_folds: "group" (default) or "random" (ablation)
+    groups = np.array([r["group"] for r in train]) if cfg.get("calibration_folds", "group") == "group" else None
     rules = RuleCache()
     strategy = cfg.get("threshold", {}).get("strategy", "max_f1")
 

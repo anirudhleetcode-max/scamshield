@@ -1,7 +1,13 @@
 {
-  "name": "real_uci",
-  "description": "Track B - train, tune and test on REAL UCI SMS data (stratified 70/15/15). Synthetic test is reverse cross-domain.",
+  "name": "ablation_random_calib_folds",
+  "description": "Ablation of Track C: identical except calibration uses random (not template-grouped) 3-fold CV.",
   "train": [
+    {
+      "dataset": "synthetic_in",
+      "splits": [
+        "train"
+      ]
+    },
     {
       "dataset": "uci_sms_spam",
       "splits": [
@@ -11,13 +17,19 @@
   ],
   "val": [
     {
+      "dataset": "synthetic_in",
+      "splits": [
+        "val"
+      ]
+    },
+    {
       "dataset": "uci_sms_spam",
       "splits": [
         "val"
       ]
     }
   ],
-  "category_head": false,
+  "category_head": true,
   "seed": 42,
   "features": {
     "word_max_features": 12000,
@@ -33,10 +45,6 @@
     "category_C": 8.0
   },
   "models": [
-    "majority",
-    "rules_only",
-    "nb",
-    "logreg_noweight",
     "logreg_uncal",
     "logreg_cal",
     "linsvc_cal"
@@ -77,10 +85,8 @@
     ]
   },
   "error_analysis": {
-    "test_sets": [
-      "synthetic_test",
-      "uci_test"
-    ],
-    "top_k": 25
-  }
+    "test_sets": [],
+    "top_k": 0
+  },
+  "calibration_folds": "random"
 }
