@@ -1,4 +1,8 @@
-"""Seed a demo account with ~30 days of realistic activity.
+"""Seed a DEMO account with ~30 days of sample activity.
+
+Everything created here is flagged (`users.is_demo`, `checks.demo`, `reports.demo`) and the UI
+shows a "Demo account - seeded sample data" banner. The messages come from the synthetic
+generator plus a few hand-written examples; they are not real user activity.
 
     python -m scripts.seed
 
@@ -20,7 +24,7 @@ from app.config import get_settings
 from app.security import hash_password
 from app.services import identifiers
 from app.services.analyzer import analyze
-from ml.generate_dataset import fill
+from ml.data.synthetic import fill
 from ml.templates import SAFE_CATEGORIES, SCAM_CATEGORIES, TEMPLATES
 
 DEMO_EMAIL = "demo@scamshield.app"
@@ -70,9 +74,10 @@ def main() -> None:
     if demo:
         db.checks.delete_many({"user_id": demo["_id"]})
         db.reports.delete_many({"user_id": demo["_id"]})
+        db.users.update_one({"_id": demo["_id"]}, {"$set": {"is_demo": True, "name": "Demo User"}})
         demo_id = demo["_id"]
     else:
-        demo_id = db.users.insert_one({"name": "Ananya Rao", "email": DEMO_EMAIL,
+        demo_id = db.users.insert_one({"name": "Demo User", "email": DEMO_EMAIL, "is_demo": True,
                                        "password_hash": hash_password(DEMO_PASSWORD), "created_at": now - timedelta(days=35)}).inserted_id
 
     # community reporters
@@ -81,7 +86,7 @@ def main() -> None:
         email = f"reporter{i}@scamshield.app"
         u = db.users.find_one({"email": email})
         if not u:
-            uid = db.users.insert_one({"name": f"Reporter {i}", "email": email,
+            uid = db.users.insert_one({"name": f"Demo reporter {i}", "email": email, "is_demo": True,
                                        "password_hash": hash_password(os.urandom(12).hex()),
                                        "created_at": now - timedelta(days=40)}).inserted_id
         else:
@@ -92,11 +97,12 @@ def main() -> None:
         for uid in reporter_ids[:n]:
             when = now - timedelta(days=rnd.uniform(0, 28))
             db.reports.insert_one({"_id": oid_at(when), "user_id": uid, "kind": kind, "value": value,
-                                   "category": cat, "note": None, "created_at": when})
+                                   "category": cat, "note": None, "demo": True, "created_at": when})
     for kind, value, cat, _ in REPORTED[:3]:  # the demo user has reported a few too
         when = now - timedelta(days=rnd.uniform(1, 20))
         db.reports.insert_one({"_id": oid_at(when), "user_id": demo_id, "kind": kind, "value": value,
-                               "category": cat, "note": "Got this on WhatsApp", "created_at": when})
+                               "category": cat, "note": "Got this on WhatsApp", "demo": True,
+                               "created_at": when})
 
     counts: dict[tuple[str, str], int] = {}
     for r in db.reports.aggregate([{"$group": {"_id": {"k": "$kind", "v": "$value"}, "n": {"$sum": 1}}}]):
@@ -120,13 +126,15 @@ def main() -> None:
         result = analyze(text, sender, {p: counts[p] for p in pairs if p in counts})
         docs.append({
             "_id": oid_at(when), "user_id": demo_id, "text": text, "sender": sender,
-            "score": result["score"], "verdict": result["verdict"], "category": result["category"],
+            "score": result["score"], "verdict": result["verdict"], "status": result["status"],
+            "category": result["category"], "demo": True,
             "flags_hit": [f["id"] for f in result["flags"] if f["hit"]],
             "identifiers": [{"kind": x["kind"], "value": x["value"]} for x in result["identifiers"]],
             "result": result, "created_at": when,
         })
     db.checks.insert_many(docs)
     verdicts = {v: sum(d["verdict"] == v for d in docs) for v in ("Safe", "Suspicious", "Scam")}
+    verdicts["insufficient_confidence"] = sum(d["status"] != "decided" for d in docs)
     print(f"seeded {len(docs)} checks {verdicts} and {db.reports.count_documents({})} reports")
     print(f"login: {DEMO_EMAIL} / {DEMO_PASSWORD}")
 

@@ -1,10 +1,24 @@
+# dependencies / builds
 node_modules/
 dist/
+coverage/
 .venv/
 venv/
+
+# python caches
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# secrets
 .env
-backend/ml/data/
+.env.*
+!.env.example
+
+# data: downloaded raw files and regenerated processed CSVs (the manifest is committed)
+backend/data/raw/
+backend/data/processed/
+
+# logs
 e2e/.logs/
+*.log

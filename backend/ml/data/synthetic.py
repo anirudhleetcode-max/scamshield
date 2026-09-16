@@ -1,31 +1,20 @@
-"""Build the labelled corpus used to train ScamShield.
+"""SYNTHETIC Indian scam / legitimate message generator.
 
-    python -m ml.generate_dataset            # writes ml/data/dataset.csv
-
-1. Synthetic Indian messages: templates from ml/templates.py, slot fillers
-   (banks, amounts, names, UPI handles, URLs ...), random typos / casing noise.
-   Templates are split into a TRAIN pool and a HELD-OUT pool (i % 4 == 3) so the
-   test set contains wordings the model never saw.
-2. UCI SMS Spam Collection (if downloadable): ham -> `personal`; spam that looks
-   like a prize/claim message -> `lottery_prize`; other spam (UK ringtone/chat
-   promos) is dropped because it does not fit our taxonomy cleanly.
-   UCI rows get a random 80/20 split.
+Templates from ml/templates.py are filled with slot values (banks, amounts, names,
+UPI handles, URLs ...) and random typo / casing noise. Every row is synthetic and is
+labelled as such in the manifest, the model card and the UI.
 """
 from __future__ import annotations
 
-import csv
-import io
 import random
 import re
 import string
-import urllib.request
-import zipfile
-from pathlib import Path
 
-from .templates import SCAM_CATEGORIES, TEMPLATES
+from ..templates import SCAM_CATEGORIES, TEMPLATES
+from .schema import Record, validate
 
-DATA_DIR = Path(__file__).parent / "data"
-UCI_URL = "https://archive.ics.uci.edu/static/public/228/sms+spam+collection.zip"
+NAME = "synthetic_in"
+GENERATOR_VERSION = "2.0"
 SEED = 42
 
 # samples per template (train pool / test pool)
@@ -180,12 +169,20 @@ def fill(r: random.Random, template: str) -> str:
     return SLOT_RE.sub(repl, template)
 
 
-def synthetic_rows(r: random.Random) -> list[dict]:
-    rows = []
+def template_split(i: int) -> str:
+    """Split by template index so a wording never appears in two splits."""
+    if i % 4 == 3:
+        return "test"
+    if i % 8 == 1:
+        return "val"
+    return "train"
+
+
+def synthetic_rows(r: random.Random) -> list[Record]:
+    rows: list[Record] = []
     for cat, templates in TEMPLATES.items():
         n = PER_TEMPLATE.get(cat, DEFAULT_PER_TEMPLATE)
         for i, t in enumerate(templates):
-            split = "test" if i % 4 == 3 else "train"
             seen = set()
             for _ in range(n):
                 text = fill(r, t)
@@ -194,57 +191,25 @@ def synthetic_rows(r: random.Random) -> list[dict]:
                 if text in seen:
                     continue
                 seen.add(text)
-                rows.append({"text": text, "category": cat, "is_scam": int(cat in SCAM_CATEGORIES),
-                             "split": split, "source": f"synthetic:{cat}:{i}"})
+                rows.append(Record(text=text, label_binary=int(cat in SCAM_CATEGORIES), category=cat,
+                                   source=NAME, split=template_split(i), group=f"{cat}:{i}"))
     return rows
 
 
-PRIZE_RE = re.compile(r"\b(won|win|winner|prize|claim|award(ed)?|selected)\b", re.I)
-
-
-def uci_rows(r: random.Random, max_ham: int = 1600) -> list[dict]:
-    raw = DATA_DIR / "raw" / "SMSSpamCollection"
-    if not raw.exists():
-        try:
-            req = urllib.request.Request(UCI_URL, headers={"User-Agent": "scamshield-dataset/1.0"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                blob = resp.read()
-            with zipfile.ZipFile(io.BytesIO(blob)) as z:
-                raw.parent.mkdir(parents=True, exist_ok=True)
-                raw.write_bytes(z.read("SMSSpamCollection"))
-        except Exception as e:  # network unavailable -> synthetic only
-            print(f"[uci] download failed ({e}); continuing with synthetic data only")
-            return []
-    ham, prize = [], []
-    for line in raw.read_text(encoding="utf-8", errors="replace").splitlines():
-        label, _, text = line.partition("\t")
-        if label == "ham":
-            ham.append(text)
-        elif label == "spam" and PRIZE_RE.search(text):
-            prize.append(text)
-    r.shuffle(ham)
-    rows = [{"text": t, "category": "personal", "is_scam": 0} for t in ham[:max_ham]]
-    rows += [{"text": t, "category": "lottery_prize", "is_scam": 1} for t in prize]
-    for row in rows:
-        row["split"] = "test" if r.random() < 0.2 else "train"
-        row["source"] = "uci"
-    print(f"[uci] using {min(len(ham), max_ham)} ham + {len(prize)} prize-spam messages")
+def build() -> list[Record]:
+    rows = synthetic_rows(random.Random(SEED))
+    validate(rows)
     return rows
 
 
-def build(path: Path | None = None) -> Path:
-    r = random.Random(SEED)
-    rows = synthetic_rows(r) + uci_rows(r)
-    path = path or DATA_DIR / "dataset.csv"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["text", "category", "is_scam", "split", "source"])
-        w.writeheader()
-        w.writerows(rows)
-    n_test = sum(1 for x in rows if x["split"] == "test")
-    print(f"wrote {len(rows)} rows ({len(rows) - n_test} train / {n_test} test) -> {path}")
-    return path
-
-
-if __name__ == "__main__":
-    build()
+INFO = {
+    "name": NAME,
+    "version": GENERATOR_VERSION,
+    "kind": "synthetic",
+    "source_url": None,
+    "licence": "MIT (generated by this repository)",
+    "description": "Templated Indian SMS/WhatsApp messages (English + romanised Hindi) in 13 categories, "
+                   "generated by ml/data/synthetic.py with a fixed seed. NOT real messages.",
+    "labels": "label_binary + category (13 classes)",
+    "split": "by template: index % 4 == 3 -> test, index % 8 == 1 -> val, else train",
+}
