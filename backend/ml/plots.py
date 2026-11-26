@@ -173,7 +173,8 @@ def cv_bars(rows: list[dict], metric: str, title: str, path: Path) -> str:
                     va="center", fontsize=7, color=TEXT)
     lo = min(r[f"{metric}_mean"] - r[f"{metric}_std"] for r in rows)
     ax.set_yticks(range(len(models)), models)
-    ax.set(xlabel=f"{metric} (5-fold CV, mean +/- std)", title=title, xlim=(max(0, lo - 0.02), 1.0))
+    ax.set(xlabel=f"{metric} (5-fold CV, mean +/- std)", title=title, xlim=(max(0, lo - 0.02), 1.012))
     ax.grid(axis="y", visible=False)
-    ax.legend(loc="lower right", fontsize=8, title="features", title_fontsize=8)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=len(feats), fontsize=8, title="features",
+              title_fontsize=8)
     return _save(fig, path)
