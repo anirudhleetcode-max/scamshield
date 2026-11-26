@@ -1,0 +1,7 @@
+error_type,p_scam,threshold,source,category,text,top_tokens
+false_negative,0.0021,0.493,uci_sms_spam,,"Do you realize that in about 40 years, we'll have thousands of old ladies running around with tattoos?",'that':-0.14 'll':-0.12 'you':-0.09 'do':-0.08 'about':-0.06 'in':-0.04
+false_negative,0.0659,0.493,uci_sms_spam,,Not heard from U4 a while. Call me now am here all night with just my knickers on. Make me beg for it like U did last time 01223585236 XX Luv Nikiyu4.net,'my':-0.15 'call me':-0.08 'me':-0.07 'did':-0.07 'not':-0.06 'like':-0.06
+false_negative,0.1641,0.493,uci_sms_spam,,"Hi babe its Chloe, how r u? I was smashed on saturday night, it was great! How was your weekend? U been missing me? SP visionsms.com Text stop to stop 150p/text",'how':-0.16 'was':-0.09 'its':-0.08 'great':-0.05 'weekend':-0.05 'it':-0.05
+false_negative,0.2168,0.493,uci_sms_spam,,Are you unique enough? Find out from 30th August. www.areyouunique.co.uk,'are you':-0.15 'you':-0.10 'out':-0.06 'enough':-0.03 'are':-0.03 'que ':-0.02
+false_negative,0.2432,0.493,uci_sms_spam,,"Will u meet ur dream partner soon? Is ur career off 2 a flyng start? 2 find out free, txt HORO followed by ur star sign, e. g. HORO ARIES",'off':-0.10 'soon':-0.06 'out':-0.05 'meet':-0.04 'is ur':-0.03 ' u ':-0.02
+false_negative,0.4612,0.493,uci_sms_spam,,"SMS. ac Blind Date 4U!: Rodds1 is 21/m from Aberdeen, United Kingdom. Check Him out http://img. sms. ac/W/icmb3cktz8r7!-4 no Blind Dates send HIDE",'no':-0.11 'him':-0.07 'date':-0.06 'out':-0.05 'no ':-0.03 ' no ':-0.03
