@@ -1,0 +1,11 @@
+error_type,p_scam,threshold,source,category,text
+false_negative,0.1034,0.9314,uci_sms_spam,,Are you unique enough? Find out from 30th August. www.areyouunique.co.uk
+false_negative,0.1158,0.9314,uci_sms_spam,,"Do you realize that in about 40 years, we'll have thousands of old ladies running around with tattoos?"
+false_negative,0.2204,0.9314,uci_sms_spam,,"Will u meet ur dream partner soon? Is ur career off 2 a flyng start? 2 find out free, txt HORO followed by ur star sign, e. g. HORO ARIES"
+false_negative,0.393,0.9314,uci_sms_spam,,"Hi, the SEXYCHAT girls are waiting for you to text them. Text now for a great night chatting. send STOP to stop this service"
+false_negative,0.7321,0.9314,uci_sms_spam,,Not heard from U4 a while. Call me now am here all night with just my knickers on. Make me beg for it like U did last time 01223585236 XX Luv Nikiyu4.net
+false_negative,0.8207,0.9314,uci_sms_spam,,Monthly password for wap. mobsi.com is 391784. Use your wap phone not PC.
+false_negative,0.8573,0.9314,uci_sms_spam,,network operator. The service is free. For T & C's visit 80488.biz
+false_negative,0.892,0.9314,uci_sms_spam,,"Hi babe its Chloe, how r u? I was smashed on saturday night, it was great! How was your weekend? U been missing me? SP visionsms.com Text stop to stop 150p/text"
+false_negative,0.9163,0.9314,uci_sms_spam,,88066 FROM 88066 LOST 3POUND HELP
+false_negative,0.929,0.9314,uci_sms_spam,,important information 4 orange user . today is your lucky day!2find out why log onto http://www.urawinner.com THERE'S A FANTASTIC SURPRISE AWAITING YOU!

@@ -113,3 +113,57 @@ def category_metrics(y_true, y_pred, labels: list[str]) -> dict:
         "per_class": {k: {m: round(float(v), 4) for m, v in rep[k].items()} for k in labels},
         "confusion_matrix": {"labels": labels, "matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist()},
     }
+
+
+def min_cost_threshold(y, score, cost_fn: float = 5.0, cost_fp: float = 1.0) -> tuple[float, float]:
+    """Threshold minimising expected cost per message on VALIDATION data.
+
+    A missed scam (FN) can cost a victim real money; a false alarm (FP) costs a moment of
+    doubt. `cost_fn / cost_fp` encodes that asymmetry. Returns (threshold, cost per message)."""
+    y = np.asarray(y).astype(int)
+    s = np.asarray(score, dtype=float)
+    cands = np.unique(np.concatenate([s, [0.0, 1.0 + 1e-9]]))
+    order = np.argsort(s)
+    s_sorted, y_sorted = s[order], y[order]
+    pos_cum = np.concatenate([[0], np.cumsum(y_sorted)])          # positives strictly below index
+    neg_cum = np.concatenate([[0], np.cumsum(1 - y_sorted)])
+    idx = np.searchsorted(s_sorted, cands, side="left")         # rows with s < t are predicted 0
+    fn = pos_cum[idx]
+    fp = (len(y) - y.sum()) - neg_cum[idx]
+    cost = (cost_fn * fn + cost_fp * fp) / max(1, len(y))
+    i = int(np.argmin(cost))
+    return float(cands[i]), round(float(cost[i]), 5)
+
+
+def threshold_sweep(y, score, n: int = 101, cost_fn: float = 5.0, cost_fp: float = 1.0) -> list[dict]:
+    """Precision / recall / F1 / FPR / expected cost at evenly spaced thresholds (for plots)."""
+    y = np.asarray(y).astype(int)
+    s = np.asarray(score, dtype=float)
+    out = []
+    for t in np.linspace(0, 1, n):
+        pred = s >= t
+        tp = int((pred & (y == 1)).sum()); fp = int((pred & (y == 0)).sum()); fn = int((~pred & (y == 1)).sum())
+        p = tp / (tp + fp) if tp + fp else 1.0
+        r = tp / (tp + fn) if tp + fn else 0.0
+        out.append({"threshold": round(float(t), 3), "precision": round(p, 4), "recall": round(r, 4),
+                    "f1": round(2 * p * r / (p + r), 4) if p + r else 0.0,
+                    "fpr": round(fp / max(1, (y == 0).sum()), 4),
+                    "cost": round((cost_fn * fn + cost_fp * fp) / max(1, len(y)), 5)})
+    return out
+
+
+def risk_coverage(y, p, threshold: float, n: int = 50) -> list[dict]:
+    """Selective-prediction curve: abstain on the messages whose probability is closest to the
+    threshold, and report accuracy on the rest as coverage shrinks."""
+    y = np.asarray(y).astype(int)
+    p = np.asarray(p, dtype=float)
+    margin = np.abs(p - threshold)
+    order = np.argsort(-margin)                                   # most confident first
+    correct = ((p >= threshold).astype(int) == y)[order]
+    out = []
+    for cov in np.linspace(1.0, 0.02, n):
+        k = max(1, int(round(cov * len(y))))
+        out.append({"coverage": round(k / len(y), 4), "selective_accuracy": round(float(correct[:k].mean()), 4),
+                    "risk": round(float(1 - correct[:k].mean()), 4),
+                    "min_margin": round(float(margin[order][k - 1]), 4)})
+    return out

@@ -22,3 +22,7 @@ backend/data/processed/
 # logs
 e2e/.logs/
 *.log
+
+# per-message scores and transformer checkpoints (large; regenerate with ml.analysis / ml.transformer)
+experiments/results/**/scores.npz
+backend/models/distilbert*/

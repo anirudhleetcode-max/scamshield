@@ -1,0 +1,32 @@
+error_type,p_scam,threshold,source,category,text
+false_positive,0.9429,0.9314,synthetic_in,promotional,"Dear customer, enjoy 20% cashback up to Rs 100 on bill payments via Amaon Pay this week."
+false_positive,0.9427,0.9314,synthetic_in,promotional,"dear customer, enjoy 20% cashback up to rs 100 on bill payments via amazno pay this week."
+false_positive,0.9418,0.9314,synthetic_in,promotional,"Dear customer, enjoy 20% cashback up to Rs 100 on bill paymenst via Amazon Pay this week."
+false_positive,0.9384,0.9314,synthetic_in,promotional,"DEAR CUSTOMER, ENJOY 20% CASHBACK UP TO RS 100 ON BILL PAYMENTS VIA AMAZON PAY THIS WEEK."
+false_positive,0.9384,0.9314,synthetic_in,promotional,"Dear customer, enjoy 20% cashback up to Rs 100 on bill payments via Amazon Pay this week."
+false_positive,0.9384,0.9314,synthetic_in,promotional,"dear customer, enjoy 20% cashback up to rs 100 on bill payments via amazon pay this week."
+false_negative,0.0737,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 66,166 bhejo warna sab ko bhej dunga."
+false_negative,0.0815,0.9314,synthetic_in,sextortion_threat,tumhari vodeo mere paas hai. rs 40980 bhejo warna sab ko bhej dunga.
+false_negative,0.0915,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai.. INR 78,474 bhejo warna sab ko bhej dunga."
+false_negative,0.0935,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 82,500 bhejo warna sab ko bhej dunga."
+false_negative,0.0959,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 1,230 bhejo warna sab ko bhej dunga."
+false_negative,0.1029,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 82,621 bhejo warna sab ko bhej dunga."
+false_negative,0.1036,0.9314,synthetic_in,otp_harvest,"Bhai galti se tumhare numbre pe OTP aa gaya, pls bhej do jaldi."
+false_negative,0.1068,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 36,200 bhejo warna sab ko bhej dunga."
+false_negative,0.1254,0.9314,synthetic_in,sextortion_threat,"Tumhari vieo mere paas hai. ₹17,130 bhejo warna sab ko bhej dunga."
+false_negative,0.1286,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 57,894 bhejo warna sab ko bhej dunga."
+false_negative,0.136,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. INR 96,400 bhejo warna sab ko bhej dunga."
+false_negative,0.1369,0.9314,synthetic_in,electricity_bill,Last reminder from electricity department: update bill details at indiapostsecure.buzz to avoid power cut tonight.
+false_negative,0.1447,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. Rs.78,190 bhejo warna sab ko bhej dunga."
+false_negative,0.1501,0.9314,synthetic_in,sextortion_threat,Tumhari video mere paas hai.. Rs 93323 bhejo warna sab ko bhej dunga.
+false_negative,0.1576,0.9314,synthetic_in,sextortion_threat,TUMHARI VIDEO MERE PAAS HAI. RS 92500 BHEJO WARMA SAB KO BHEJ DUNGA.
+false_negative,0.1673,0.9314,synthetic_in,sextortion_threat,Tumhari video mere paas hai. rs 32558 bhejo warna sab ko bhej dunga.
+false_negative,0.1816,0.9314,synthetic_in,sextortion_threat,Tumhari vieo mere paas hai. Rs.99049.00 bhejo warna sab ko bhej dunga.
+false_negative,0.1918,0.9314,synthetic_in,sextortion_threat,"Tumhrai video mere paas hai. Rs.39,822 bhejo warna sab ko bhej dunga."
+false_negative,0.2043,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. Rs.62,609 bhejo warna sab ko bhej dunga."
+false_negative,0.2113,0.9314,synthetic_in,sextortion_threat,"Tuhmari video mere paas hai. Rs.11,800 bhejo warna sab ko bhej dunga."
+false_negative,0.2399,0.9314,synthetic_in,sextortion_threat,Tumhari video mere paas hai. rs 46374 bhejo warna sab ko bhej dunga.
+false_negative,0.2703,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. Rs.72,933 bhejo warna sab ko bhej dunga."
+false_negative,0.2922,0.9314,synthetic_in,sextortion_threat,"Tuhmari video mere paas hai. Rs.7,981 bhjo warna sab ko bhej dunga."
+false_negative,0.3083,0.9314,synthetic_in,otp_harvest,"Bhai galti se tumhare number pe OTP aa gaya, plase bhej do jaldi."
+false_negative,0.3264,0.9314,synthetic_in,sextortion_threat,"Tumhari video mere paas hai. Rs.24,685 bhejo warna sab ko bhej dunga."

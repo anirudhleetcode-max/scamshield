@@ -48,10 +48,15 @@ Dataset names, hashes and row counts are recorded under `metrics.json → data`.
 | Track C: combined (shipped model v2.0.0) | synthetic + UCI | Synthetic test F1 0.961; UCI test F1 0.973; all-scam-spam (email, out-of-domain) F1 0.219 | `results/combined-train-v2.0.0-20260916-132846` |
 | Ablation: random calibration folds | same as C | logreg_cal val ECE 0.123 (grouped: 0.050) | `results/ablation_random_calib_folds-20260916-131947` |
 
+| Classical analysis: 5-fold CV search + tuned NB / LogReg / SVM, thresholds, abstention, figures (2026-11-26) | synthetic + UCI | NB / LogReg / SVM tied in CV (p ≥ 0.15). Shipped C = 4 confirmed. Cost-optimal threshold 0.12. | `results/combined-analysis-20261126-140615` |
+| DistilBERT fine-tune vs TF-IDF (2026-11-26) | synthetic + UCI | UCI F1 0.945 vs 0.973. PR-AUC 0.999 vs 0.991. 19× slower, 110× bigger. | `results/combined-distilbert-20261126-141142` |
+
 The F1 values are for `logreg_cal` at its validation-chosen threshold. All baselines are in each run's `summary.md`.
 
-The write-up is in [`reports/2026-09-16-three-tracks.md`](reports/2026-09-16-three-tracks.md).
+The write-ups are in [`reports/2026-09-16-three-tracks.md`](reports/2026-09-16-three-tracks.md) and [`reports/2026-11-26-classical-vs-transformer.md`](reports/2026-11-26-classical-vs-transformer.md).
+
+The 2026-11-26 runs come from `cd backend && python -m ml.analysis` and `python -m ml.transformer --tfidf-run <analysis folder>` (needs `requirements-ml.txt`).
 
 Not run yet:
 - **Real Indian scam SMS:** dataset required before evaluation. The one candidate found, `gandharvbakshi/SMS-dataset-OTP-OTP_INTENT_Phishing`, is gated on Hugging Face.
-- **Repeated seeds / confidence intervals:** experiment not run.
+- **Repeated seeds / bootstrap confidence intervals:** experiment not run. Variance is only reported as CV fold spread.

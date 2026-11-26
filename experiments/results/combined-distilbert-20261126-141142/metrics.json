@@ -1,0 +1,1207 @@
+{
+ "base_model": "distilbert-base-uncased",
+ "hyperparameters": {
+  "max_length": 128,
+  "batch_size": 32,
+  "epochs": 3,
+  "lr": 5e-05,
+  "weight_decay": 0.01,
+  "warmup_ratio": 0.06,
+  "seed": 42
+ },
+ "training": {
+  "history": [
+   {
+    "epoch": 1,
+    "train_loss": 0.127,
+    "val_pr_auc": 0.989,
+    "val_f1_at_0.5": 0.9099,
+    "val_ece": 0.083,
+    "epoch_seconds": 289.3
+   },
+   {
+    "epoch": 2,
+    "train_loss": 0.0129,
+    "val_pr_auc": 0.9959,
+    "val_f1_at_0.5": 0.921,
+    "val_ece": 0.0776,
+    "epoch_seconds": 243.8
+   },
+   {
+    "epoch": 3,
+    "train_loss": 0.003,
+    "val_pr_auc": 0.9957,
+    "val_f1_at_0.5": 0.9197,
+    "val_ece": 0.082,
+    "epoch_seconds": 240.2
+   }
+  ],
+  "best_epoch": 2,
+  "train_seconds": 773.9
+ },
+ "inference_seconds_all_sets_4threads": 100.4,
+ "temperature": 2.6779,
+ "models": {
+  "distilbert": {
+   "threshold_max_f1_val": 0.9991,
+   "val": {
+    "n": 1988,
+    "positives": 939,
+    "threshold": 0.9991,
+    "precision": 0.9703,
+    "recall": 0.9755,
+    "f1": 0.9729,
+    "accuracy": 0.9743,
+    "false_positive_rate": 0.0267,
+    "roc_auc": 0.9959,
+    "pr_auc": 0.9959,
+    "confusion_matrix": [
+     [
+      1021,
+      28
+     ],
+     [
+      23,
+      916
+     ]
+    ],
+    "brier": 0.0743,
+    "ece": 0.0776,
+    "reliability": [
+     {
+      "bin": "0.00-0.07",
+      "n": 880,
+      "mean_predicted": 0.0013,
+      "fraction_positive": 0.0068
+     },
+     {
+      "bin": "0.07-0.13",
+      "n": 10,
+      "mean_predicted": 0.09,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.13-0.20",
+      "n": 3,
+      "mean_predicted": 0.1637,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.20-0.27",
+      "n": 2,
+      "mean_predicted": 0.2315,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.27-0.33",
+      "n": 2,
+      "mean_predicted": 0.3031,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.33-0.40",
+      "n": 1,
+      "mean_predicted": 0.345,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.40-0.47",
+      "n": 2,
+      "mean_predicted": 0.4289,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.47-0.53",
+      "n": 2,
+      "mean_predicted": 0.4952,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.53-0.60",
+      "n": 4,
+      "mean_predicted": 0.558,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.60-0.67",
+      "n": 3,
+      "mean_predicted": 0.6381,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.67-0.73",
+      "n": 6,
+      "mean_predicted": 0.6981,
+      "fraction_positive": 0.1667
+     },
+     {
+      "bin": "0.73-0.80",
+      "n": 5,
+      "mean_predicted": 0.7556,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.80-0.87",
+      "n": 1,
+      "mean_predicted": 0.8478,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.87-0.93",
+      "n": 4,
+      "mean_predicted": 0.9074,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.93-1.00",
+      "n": 1063,
+      "mean_predicted": 0.9983,
+      "fraction_positive": 0.8768
+     }
+    ]
+   },
+   "test": {
+    "synthetic_test": {
+     "n": 1947,
+     "positives": 1252,
+     "threshold": 0.9991,
+     "precision": 0.9948,
+     "recall": 0.9209,
+     "f1": 0.9564,
+     "accuracy": 0.9461,
+     "false_positive_rate": 0.0086,
+     "roc_auc": 0.9898,
+     "pr_auc": 0.995,
+     "confusion_matrix": [
+      [
+       689,
+       6
+      ],
+      [
+       99,
+       1153
+      ]
+     ],
+     "brier": 0.0502,
+     "ece": 0.048,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 600,
+       "mean_predicted": 0.0064,
+       "fraction_positive": 0.0367
+      },
+      {
+       "bin": "0.07-0.13",
+       "n": 25,
+       "mean_predicted": 0.0944,
+       "fraction_positive": 0.12
+      },
+      {
+       "bin": "0.13-0.20",
+       "n": 9,
+       "mean_predicted": 0.1673,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 3,
+       "mean_predicted": 0.2249,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.27-0.33",
+       "n": 5,
+       "mean_predicted": 0.2964,
+       "fraction_positive": 0.4
+      },
+      {
+       "bin": "0.33-0.40",
+       "n": 4,
+       "mean_predicted": 0.3607,
+       "fraction_positive": 0.25
+      },
+      {
+       "bin": "0.40-0.47",
+       "n": 5,
+       "mean_predicted": 0.4196,
+       "fraction_positive": 0.8
+      },
+      {
+       "bin": "0.47-0.53",
+       "n": 1,
+       "mean_predicted": 0.4743,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.53-0.60",
+       "n": 1,
+       "mean_predicted": 0.5503,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.60-0.67",
+       "n": 3,
+       "mean_predicted": 0.6333,
+       "fraction_positive": 0.3333
+      },
+      {
+       "bin": "0.67-0.73",
+       "n": 1,
+       "mean_predicted": 0.7324,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.73-0.80",
+       "n": 5,
+       "mean_predicted": 0.7766,
+       "fraction_positive": 0.2
+      },
+      {
+       "bin": "0.80-0.87",
+       "n": 13,
+       "mean_predicted": 0.8297,
+       "fraction_positive": 0.6154
+      },
+      {
+       "bin": "0.87-0.93",
+       "n": 15,
+       "mean_predicted": 0.9067,
+       "fraction_positive": 0.6
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 1257,
+       "mean_predicted": 0.999,
+       "fraction_positive": 0.9539
+      }
+     ]
+    },
+    "uci_test": {
+     "n": 774,
+     "positives": 96,
+     "threshold": 0.9991,
+     "precision": 1.0,
+     "recall": 0.8958,
+     "f1": 0.9451,
+     "accuracy": 0.9871,
+     "false_positive_rate": 0.0,
+     "roc_auc": 0.9998,
+     "pr_auc": 0.999,
+     "confusion_matrix": [
+      [
+       678,
+       0
+      ],
+      [
+       10,
+       86
+      ]
+     ],
+     "brier": 0.0045,
+     "ece": 0.0045,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 681,
+       "mean_predicted": 0.0006,
+       "fraction_positive": 0.0044
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 1,
+       "mean_predicted": 0.2379,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 92,
+       "mean_predicted": 0.9988,
+       "fraction_positive": 1.0
+      }
+     ]
+    },
+    "all_scam_spam_short": {
+     "n": 8389,
+     "positives": 3591,
+     "threshold": 0.9991,
+     "precision": 0.5653,
+     "recall": 0.0808,
+     "f1": 0.1413,
+     "accuracy": 0.5799,
+     "false_positive_rate": 0.0465,
+     "roc_auc": 0.4978,
+     "pr_auc": 0.4518,
+     "confusion_matrix": [
+      [
+       4575,
+       223
+      ],
+      [
+       3301,
+       290
+      ]
+     ],
+     "brier": 0.4477,
+     "ece": 0.4381,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 4785,
+       "mean_predicted": 0.0095,
+       "fraction_positive": 0.4387
+      },
+      {
+       "bin": "0.07-0.13",
+       "n": 353,
+       "mean_predicted": 0.0949,
+       "fraction_positive": 0.4334
+      },
+      {
+       "bin": "0.13-0.20",
+       "n": 170,
+       "mean_predicted": 0.1641,
+       "fraction_positive": 0.4588
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 112,
+       "mean_predicted": 0.2314,
+       "fraction_positive": 0.3839
+      },
+      {
+       "bin": "0.27-0.33",
+       "n": 106,
+       "mean_predicted": 0.302,
+       "fraction_positive": 0.5189
+      },
+      {
+       "bin": "0.33-0.40",
+       "n": 90,
+       "mean_predicted": 0.3647,
+       "fraction_positive": 0.4667
+      },
+      {
+       "bin": "0.40-0.47",
+       "n": 75,
+       "mean_predicted": 0.4339,
+       "fraction_positive": 0.36
+      },
+      {
+       "bin": "0.47-0.53",
+       "n": 57,
+       "mean_predicted": 0.5001,
+       "fraction_positive": 0.3684
+      },
+      {
+       "bin": "0.53-0.60",
+       "n": 76,
+       "mean_predicted": 0.5679,
+       "fraction_positive": 0.5
+      },
+      {
+       "bin": "0.60-0.67",
+       "n": 62,
+       "mean_predicted": 0.63,
+       "fraction_positive": 0.4355
+      },
+      {
+       "bin": "0.67-0.73",
+       "n": 85,
+       "mean_predicted": 0.7007,
+       "fraction_positive": 0.4471
+      },
+      {
+       "bin": "0.73-0.80",
+       "n": 101,
+       "mean_predicted": 0.7666,
+       "fraction_positive": 0.4851
+      },
+      {
+       "bin": "0.80-0.87",
+       "n": 121,
+       "mean_predicted": 0.8374,
+       "fraction_positive": 0.4463
+      },
+      {
+       "bin": "0.87-0.93",
+       "n": 284,
+       "mean_predicted": 0.9077,
+       "fraction_positive": 0.2711
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 1912,
+       "mean_predicted": 0.9854,
+       "fraction_positive": 0.4132
+      }
+     ]
+    }
+   }
+  },
+  "distilbert (temp-scaled)": {
+   "threshold_max_f1_val": 0.9314,
+   "val": {
+    "n": 1988,
+    "positives": 939,
+    "threshold": 0.9314,
+    "precision": 0.9703,
+    "recall": 0.9755,
+    "f1": 0.9729,
+    "accuracy": 0.9743,
+    "false_positive_rate": 0.0267,
+    "roc_auc": 0.9959,
+    "pr_auc": 0.9959,
+    "confusion_matrix": [
+     [
+      1021,
+      28
+     ],
+     [
+      23,
+      916
+     ]
+    ],
+    "brier": 0.0612,
+    "ece": 0.0797,
+    "reliability": [
+     {
+      "bin": "0.00-0.07",
+      "n": 761,
+      "mean_predicted": 0.0479,
+      "fraction_positive": 0.0026
+     },
+     {
+      "bin": "0.07-0.13",
+      "n": 97,
+      "mean_predicted": 0.0864,
+      "fraction_positive": 0.0309
+     },
+     {
+      "bin": "0.13-0.20",
+      "n": 10,
+      "mean_predicted": 0.1638,
+      "fraction_positive": 0.1
+     },
+     {
+      "bin": "0.20-0.27",
+      "n": 12,
+      "mean_predicted": 0.2404,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.27-0.33",
+      "n": 10,
+      "mean_predicted": 0.2958,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.33-0.40",
+      "n": 5,
+      "mean_predicted": 0.3668,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.40-0.47",
+      "n": 3,
+      "mean_predicted": 0.4286,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.47-0.53",
+      "n": 7,
+      "mean_predicted": 0.4992,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.53-0.60",
+      "n": 13,
+      "mean_predicted": 0.5731,
+      "fraction_positive": 0.0769
+     },
+     {
+      "bin": "0.60-0.67",
+      "n": 3,
+      "mean_predicted": 0.6285,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.67-0.73",
+      "n": 5,
+      "mean_predicted": 0.7077,
+      "fraction_positive": 0.0
+     },
+     {
+      "bin": "0.73-0.80",
+      "n": 22,
+      "mean_predicted": 0.7744,
+      "fraction_positive": 0.2273
+     },
+     {
+      "bin": "0.80-0.87",
+      "n": 39,
+      "mean_predicted": 0.8336,
+      "fraction_positive": 0.1026
+     },
+     {
+      "bin": "0.87-0.93",
+      "n": 59,
+      "mean_predicted": 0.8985,
+      "fraction_positive": 0.1525
+     },
+     {
+      "bin": "0.93-1.00",
+      "n": 942,
+      "mean_predicted": 0.9606,
+      "fraction_positive": 0.9703
+     }
+    ]
+   },
+   "test": {
+    "synthetic_test": {
+     "n": 1947,
+     "positives": 1252,
+     "threshold": 0.9314,
+     "precision": 0.9948,
+     "recall": 0.9209,
+     "f1": 0.9564,
+     "accuracy": 0.9461,
+     "false_positive_rate": 0.0086,
+     "roc_auc": 0.9898,
+     "pr_auc": 0.995,
+     "confusion_matrix": [
+      [
+       689,
+       6
+      ],
+      [
+       99,
+       1153
+      ]
+     ],
+     "brier": 0.0448,
+     "ece": 0.0681,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 215,
+       "mean_predicted": 0.0544,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.07-0.13",
+       "n": 237,
+       "mean_predicted": 0.0937,
+       "fraction_positive": 0.0422
+      },
+      {
+       "bin": "0.13-0.20",
+       "n": 100,
+       "mean_predicted": 0.1636,
+       "fraction_positive": 0.08
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 47,
+       "mean_predicted": 0.2272,
+       "fraction_positive": 0.0638
+      },
+      {
+       "bin": "0.27-0.33",
+       "n": 27,
+       "mean_predicted": 0.2996,
+       "fraction_positive": 0.1481
+      },
+      {
+       "bin": "0.33-0.40",
+       "n": 11,
+       "mean_predicted": 0.3648,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.40-0.47",
+       "n": 10,
+       "mean_predicted": 0.4349,
+       "fraction_positive": 0.4
+      },
+      {
+       "bin": "0.47-0.53",
+       "n": 6,
+       "mean_predicted": 0.4825,
+       "fraction_positive": 0.8333
+      },
+      {
+       "bin": "0.53-0.60",
+       "n": 4,
+       "mean_predicted": 0.5614,
+       "fraction_positive": 0.25
+      },
+      {
+       "bin": "0.60-0.67",
+       "n": 18,
+       "mean_predicted": 0.6357,
+       "fraction_positive": 0.5
+      },
+      {
+       "bin": "0.67-0.73",
+       "n": 16,
+       "mean_predicted": 0.7034,
+       "fraction_positive": 0.5625
+      },
+      {
+       "bin": "0.73-0.80",
+       "n": 12,
+       "mean_predicted": 0.7716,
+       "fraction_positive": 0.1667
+      },
+      {
+       "bin": "0.80-0.87",
+       "n": 30,
+       "mean_predicted": 0.8387,
+       "fraction_positive": 0.3
+      },
+      {
+       "bin": "0.87-0.93",
+       "n": 64,
+       "mean_predicted": 0.9091,
+       "fraction_positive": 0.6875
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 1150,
+       "mean_predicted": 0.9612,
+       "fraction_positive": 0.9948
+      }
+     ]
+    },
+    "uci_test": {
+     "n": 774,
+     "positives": 96,
+     "threshold": 0.9314,
+     "precision": 1.0,
+     "recall": 0.8958,
+     "f1": 0.9451,
+     "accuracy": 0.9871,
+     "false_positive_rate": 0.0,
+     "roc_auc": 0.9998,
+     "pr_auc": 0.999,
+     "confusion_matrix": [
+      [
+       678,
+       0
+      ],
+      [
+       10,
+       86
+      ]
+     ],
+     "brier": 0.006,
+     "ece": 0.0466,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 648,
+       "mean_predicted": 0.047,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.07-0.13",
+       "n": 29,
+       "mean_predicted": 0.0852,
+       "fraction_positive": 0.069
+      },
+      {
+       "bin": "0.13-0.20",
+       "n": 1,
+       "mean_predicted": 0.1599,
+       "fraction_positive": 0.0
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 3,
+       "mean_predicted": 0.23,
+       "fraction_positive": 0.3333
+      },
+      {
+       "bin": "0.33-0.40",
+       "n": 1,
+       "mean_predicted": 0.393,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.67-0.73",
+       "n": 1,
+       "mean_predicted": 0.7321,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.80-0.87",
+       "n": 2,
+       "mean_predicted": 0.839,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.87-0.93",
+       "n": 3,
+       "mean_predicted": 0.9124,
+       "fraction_positive": 1.0
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 86,
+       "mean_predicted": 0.9626,
+       "fraction_positive": 1.0
+      }
+     ]
+    },
+    "all_scam_spam_short": {
+     "n": 8389,
+     "positives": 3591,
+     "threshold": 0.9314,
+     "precision": 0.5653,
+     "recall": 0.0808,
+     "f1": 0.1413,
+     "accuracy": 0.5799,
+     "false_positive_rate": 0.0465,
+     "roc_auc": 0.4978,
+     "pr_auc": 0.4518,
+     "confusion_matrix": [
+      [
+       4575,
+       223
+      ],
+      [
+       3301,
+       290
+      ]
+     ],
+     "brier": 0.354,
+     "ece": 0.3166,
+     "reliability": [
+      {
+       "bin": "0.00-0.07",
+       "n": 1048,
+       "mean_predicted": 0.0547,
+       "fraction_positive": 0.4332
+      },
+      {
+       "bin": "0.07-0.13",
+       "n": 2098,
+       "mean_predicted": 0.0986,
+       "fraction_positive": 0.4252
+      },
+      {
+       "bin": "0.13-0.20",
+       "n": 1025,
+       "mean_predicted": 0.1614,
+       "fraction_positive": 0.4449
+      },
+      {
+       "bin": "0.20-0.27",
+       "n": 577,
+       "mean_predicted": 0.2323,
+       "fraction_positive": 0.4818
+      },
+      {
+       "bin": "0.27-0.33",
+       "n": 394,
+       "mean_predicted": 0.2974,
+       "fraction_positive": 0.4442
+      },
+      {
+       "bin": "0.33-0.40",
+       "n": 256,
+       "mean_predicted": 0.3644,
+       "fraction_positive": 0.4336
+      },
+      {
+       "bin": "0.40-0.47",
+       "n": 235,
+       "mean_predicted": 0.4335,
+       "fraction_positive": 0.4638
+      },
+      {
+       "bin": "0.47-0.53",
+       "n": 179,
+       "mean_predicted": 0.5015,
+       "fraction_positive": 0.419
+      },
+      {
+       "bin": "0.53-0.60",
+       "n": 179,
+       "mean_predicted": 0.5678,
+       "fraction_positive": 0.4469
+      },
+      {
+       "bin": "0.60-0.67",
+       "n": 199,
+       "mean_predicted": 0.6338,
+       "fraction_positive": 0.4673
+      },
+      {
+       "bin": "0.67-0.73",
+       "n": 321,
+       "mean_predicted": 0.7051,
+       "fraction_positive": 0.2555
+      },
+      {
+       "bin": "0.73-0.80",
+       "n": 448,
+       "mean_predicted": 0.7671,
+       "fraction_positive": 0.1897
+      },
+      {
+       "bin": "0.80-0.87",
+       "n": 399,
+       "mean_predicted": 0.8314,
+       "fraction_positive": 0.3684
+      },
+      {
+       "bin": "0.87-0.93",
+       "n": 544,
+       "mean_predicted": 0.9037,
+       "fraction_positive": 0.5165
+      },
+      {
+       "bin": "0.93-1.00",
+       "n": 487,
+       "mean_predicted": 0.9487,
+       "fraction_positive": 0.5606
+      }
+     ]
+    }
+   }
+  }
+ },
+ "thresholds": {
+  "max F1": 0.9314,
+  "min cost (FN=5, FP=1)": 0.9202,
+  "test_at_min_cost": {
+   "synthetic_test": {
+    "n": 1947,
+    "positives": 1252,
+    "threshold": 0.9202,
+    "precision": 0.9932,
+    "recall": 0.9353,
+    "f1": 0.9634,
+    "accuracy": 0.9543,
+    "false_positive_rate": 0.0115,
+    "roc_auc": 0.9898,
+    "pr_auc": 0.995,
+    "confusion_matrix": [
+     [
+      687,
+      8
+     ],
+     [
+      81,
+      1171
+     ]
+    ],
+    "brier": null,
+    "ece": null
+   },
+   "uci_test": {
+    "n": 774,
+    "positives": 96,
+    "threshold": 0.9202,
+    "precision": 1.0,
+    "recall": 0.9062,
+    "f1": 0.9508,
+    "accuracy": 0.9884,
+    "false_positive_rate": 0.0,
+    "roc_auc": 0.9998,
+    "pr_auc": 0.999,
+    "confusion_matrix": [
+     [
+      678,
+      0
+     ],
+     [
+      9,
+      87
+     ]
+    ],
+    "brier": null,
+    "ece": null
+   },
+   "all_scam_spam_short": {
+    "n": 8389,
+    "positives": 3591,
+    "threshold": 0.9202,
+    "precision": 0.581,
+    "recall": 0.1019,
+    "f1": 0.1734,
+    "accuracy": 0.5841,
+    "false_positive_rate": 0.055,
+    "roc_auc": 0.4978,
+    "pr_auc": 0.4518,
+    "confusion_matrix": [
+     [
+      4534,
+      264
+     ],
+     [
+      3225,
+      366
+     ]
+    ],
+    "brier": null,
+    "ece": null
+   }
+  }
+ },
+ "abstention": {
+  "band_chosen_on_val": {
+   "low": 0.8814,
+   "high": 0.9814,
+   "coverage": 0.5045,
+   "selective_accuracy": 0.9831,
+   "target_accuracy": 0.98,
+   "target_met": true,
+   "max_half_width_tried": 0.3
+  }
+ },
+ "int8": {
+  "synthetic_test": {
+   "n": 1947,
+   "positives": 1252,
+   "threshold": 0.9314,
+   "precision": 1.0,
+   "recall": 0.7029,
+   "f1": 0.8255,
+   "accuracy": 0.8089,
+   "false_positive_rate": 0.0,
+   "roc_auc": 0.979,
+   "pr_auc": 0.99,
+   "confusion_matrix": [
+    [
+     695,
+     0
+    ],
+    [
+     372,
+     880
+    ]
+   ],
+   "brier": 0.0664,
+   "ece": 0.1014
+  },
+  "uci_test": {
+   "n": 774,
+   "positives": 96,
+   "threshold": 0.9314,
+   "precision": 1.0,
+   "recall": 0.75,
+   "f1": 0.8571,
+   "accuracy": 0.969,
+   "false_positive_rate": 0.0,
+   "roc_auc": 0.9998,
+   "pr_auc": 0.9985,
+   "confusion_matrix": [
+    [
+     678,
+     0
+    ],
+    [
+     24,
+     72
+    ]
+   ],
+   "brier": 0.0106,
+   "ece": 0.08
+  }
+ },
+ "deployment": {
+  "hardware": "4 vCPU container, latency measured with 1 thread, batch size 1",
+  "tfidf_logreg (probability only)": {
+   "latency": {
+    "n": 300,
+    "p50_ms": 2.22,
+    "p95_ms": 2.57,
+    "mean_ms": 2.24,
+    "throughput_msgs_per_s_1thread": 446.3
+   },
+   "artifact_mb": 2.4,
+   "peak_rss_mb": 174.7
+  },
+  "tfidf_logreg (full API predict: prob + category + explanation spans)": {
+   "latency": {
+    "n": 300,
+    "p50_ms": 3.53,
+    "p95_ms": 5.39,
+    "mean_ms": 3.79,
+    "throughput_msgs_per_s_1thread": 263.7
+   }
+  },
+  "distilbert_fp32": {
+   "latency": {
+    "n": 300,
+    "p50_ms": 41.87,
+    "p95_ms": 53.18,
+    "mean_ms": 42.4,
+    "throughput_msgs_per_s_1thread": 23.6
+   },
+   "artifact_mb": 268.5,
+   "peak_rss_mb": 963.9,
+   "parameters_m": 67.0
+  },
+  "distilbert_int8_dynamic": {
+   "latency": {
+    "n": 300,
+    "p50_ms": 12.62,
+    "p95_ms": 17.71,
+    "mean_ms": 12.74,
+    "throughput_msgs_per_s_1thread": 78.5
+   },
+   "artifact_mb": 138.7,
+   "peak_rss_mb": 1354.8
+  }
+ },
+ "explanations": [
+  {
+   "text": "Dear customer your SBI account will be blocked today. Update KYC at http://sbi-kyc.top immediately",
+   "distilbert": {
+    "p_scam": 0.9651,
+    "occlusion_top_words": [
+     [
+      "http://sbi-kyc.top",
+      0.0019
+     ],
+     [
+      "be",
+      0.0009
+     ],
+     [
+      "blocked",
+      0.0009
+     ],
+     [
+      "will",
+      0.0008
+     ],
+     [
+      "account",
+      0.0008
+     ],
+     [
+      "Update",
+      0.0008
+     ]
+    ],
+    "forward_passes": 15,
+    "ms": 595.9
+   },
+   "tfidf": {
+    "p_scam": 0.9988,
+    "top_spans": [
+     "Dear customer your",
+     "account will be blocked",
+     "Update KYC",
+     "http://sbi-kyc.top immediately"
+    ],
+    "ms": 5.9
+   }
+  },
+  {
+   "text": "OTP aa gaya hoga, please bhej do jaldi warna order cancel ho jayega",
+   "distilbert": {
+    "p_scam": 0.5067,
+    "occlusion_top_words": [
+     [
+      "OTP",
+      0.4402
+     ],
+     [
+      "jayega",
+      0.2919
+     ],
+     [
+      "hoga,",
+      -0.2647
+     ],
+     [
+      "cancel",
+      0.2369
+     ],
+     [
+      "do",
+      -0.2256
+     ],
+     [
+      "bhej",
+      0.1922
+     ]
+    ],
+    "forward_passes": 14,
+    "ms": 552.5
+   },
+   "tfidf": {
+    "p_scam": 0.3045,
+    "top_spans": [
+     "gaya",
+     "please bhej",
+     "warna order cancel ho",
+     "jayega"
+    ],
+    "ms": 4.6
+   }
+  },
+  {
+   "text": "Money received! Rs 45000 from RAHUL (rahul@okaxis) credited to your HDFC account. UPI Ref 412345678901",
+   "distilbert": {
+    "p_scam": 0.857,
+    "occlusion_top_words": [
+     [
+      "Money",
+      0.7659
+     ],
+     [
+      "received!",
+      0.4245
+     ],
+     [
+      "(rahul@okaxis)",
+      0.2966
+     ],
+     [
+      "your",
+      0.2425
+     ],
+     [
+      "HDFC",
+      0.2226
+     ],
+     [
+      "Ref",
+      -0.1004
+     ]
+    ],
+    "forward_passes": 16,
+    "ms": 692.2
+   },
+   "tfidf": {
+    "p_scam": 0.6902,
+    "top_spans": [
+     "Money received",
+     "45000 from",
+     "rahul@okaxis",
+     "to your",
+     "account",
+     "412345678901"
+    ],
+    "ms": 4.7
+   }
+  }
+ ],
+ "figures": [
+  "reliability_all_scam_spam_short.png",
+  "reliability_synthetic_test.png",
+  "reliability_uci_test.png",
+  "risk_coverage_uci_test.png",
+  "roc_pr_all_scam_spam_short.png",
+  "roc_pr_synthetic_test.png",
+  "roc_pr_uci_test.png"
+ ],
+ "tfidf_run": "experiments/results/combined-analysis-20261126-140615"
+}
