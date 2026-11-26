@@ -226,6 +226,15 @@ python -m ml.train             # trains v2.0.0 from experiments/configs/combined
 
 Training is deterministic: re-running it reproduced the same weights and metrics.
 
+Research runs (offline, `pip install -r requirements-ml.txt` for matplotlib / torch / transformers):
+
+```powershell
+python -m ml.analysis          # 5-fold CV grid search + tuned NB / LogReg / SVM, thresholds, abstention, figures (~3 min on 4 CPUs)
+python -m ml.transformer --tfidf-run ..\experiments\results\<combined-analysis-run>   # DistilBERT fine-tune + comparison (CPU)
+```
+
+Neither command changes the shipped model.
+
 ## Evaluation
 
 Metrics, and why each one is used:
@@ -234,7 +243,14 @@ Metrics, and why each one is used:
 - **ROC-AUC.**
 - **Confusion matrix.**
 - **Brier score and ECE** (15 bins, with the reliability table), because the API exposes a probability.
-- **Selective accuracy and coverage** for abstention.
+- **Selective accuracy and coverage** for abstention, plus the full **risk–coverage curve**.
+- **Expected cost** with a missed scam weighted 5× a false alarm, for choosing a cost-aware threshold.
+
+How models are compared and tuned (`python -m ml.analysis`, see [Model selection](#model-selection-cross-validation-and-tuning)):
+- **Stratified, group-aware 5-fold cross-validation** on the training split only (`StratifiedGroupKFold`: stratified by source × label, grouped by synthetic template so near-duplicates never straddle a fold; TF-IDF refit inside every fold).
+- **Grid search** over feature set (word / char / word+char) × NB `alpha`, LogReg `C`, LinearSVC `C`, selected by mean PR-AUC.
+- **Corrected resampled t-test** (Nadeau & Bengio) for "is model A really better than B?", because CV folds share training data.
+- Figures: ROC (log-scale FPR), precision–recall, confusion matrices, reliability diagrams, threshold sweep with expected cost, risk–coverage.
 
 The three evaluation tracks:
 
