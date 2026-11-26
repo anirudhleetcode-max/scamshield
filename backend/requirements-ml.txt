@@ -1,0 +1,5 @@
+# Offline research only (ml.analysis, ml.plots, ml.transformer). The API does not need these.
+-r requirements-dev.txt
+matplotlib>=3.9
+torch>=2.4
+transformers>=4.45
